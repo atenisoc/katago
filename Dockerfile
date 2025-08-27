@@ -1,34 +1,23 @@
-# ---- Stage 1: build KataGo (Eigen/CPU) ----
-FROM ubuntu:22.04 AS katago-build
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    git cmake g++ libeigen3-dev zlib1g-dev curl ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-WORKDIR /src
-RUN git clone --depth 1 --branch v1.16.3 https://github.com/lightvector/KataGo.git .
-RUN cmake -S cpp -B build -DUSE_BACKEND=EIGEN -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build build -j $(nproc)
+# Node 20 / Debian bookworm（glibc 2.36系）
+FROM node:20-bookworm-slim
 
-# ---- Stage 2: app runtime ----
-FROM node:20-bullseye-slim
+# ベースツール
+RUN apt-get update && apt-get install -y     ca-certificates curl unzip  && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Node依孁E
+# 依存インストール
 COPY package*.json ./
-RUN npm i --omit=dev
+RUN npm ci
 
-# アプリ本佁E
+# ソースとエンジンをコピー
 COPY . .
 
-# 置き場所を用愁E
-RUN mkdir -p /app/engines/bin /app/engines/configs /app/engines/weights
-
-# ビルド済みKataGo投�E
-COPY --from=katago-build /src/build/katago /app/engines/bin/katago
+# KataGo 実行権限
 RUN chmod +x /app/engines/bin/katago
 
-# �E�任意）�E析設定ファイルを同梱してぁE��なら、ここでコピ�E
-# COPY engines/analysis.cfg /app/engines/configs/analysis.cfg
-
-ENV PORT=5173
+# ポート公開（server.js が 5173 を使う想定）
 EXPOSE 5173
-CMD ["node","server.js"]
+
+# 初回起動時に重みが無ければ自動DL、続けてサーバ起動
+CMD node scripts/bootstrap-weights.js && node server.js
