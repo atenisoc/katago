@@ -6,3 +6,5 @@ nets/
 *.bin_temp.gz
 katago-ui/data/
 katago-ui/all_22M.sgf
+# ignore backup cfg
+engines/easy_b6/analysis_backup.cfg
