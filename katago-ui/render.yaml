@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: katago-ui
+    env: docker
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "5173"
+
+      # server.js が読む KATAGO_* を Linux の絶対パスで
+      - key: KATAGO_EASY_EXE
+        value: /app/engines/bin/katago
+      - key: KATAGO_EASY_CFG
+        value: /app/engines/configs/analysis.cfg
+      - key: KATAGO_EASY_MODEL
+        value: /app/engines/weights/kata1-b6c96-s50894592-d7380655.txt.gz
+
+      - key: KATAGO_NORMAL_EXE
+        value: /app/engines/bin/katago
+      - key: KATAGO_NORMAL_CFG
+        value: /app/engines/configs/analysis.cfg
+      - key: KATAGO_NORMAL_MODEL
+        value: /app/engines/weights/kata1-b10c128-s1141046784-d204142634.txt.gz
+
+      - key: KATAGO_HARD_EXE
+        value: /app/engines/bin/katago
+      - key: KATAGO_HARD_CFG
+        value: /app/engines/configs/analysis.cfg
+      - key: KATAGO_HARD_MODEL
+        value: /app/engines/weights/kata1-b10c128-s1141046784-d204142634.txt.gz

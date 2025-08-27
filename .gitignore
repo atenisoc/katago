@@ -1,0 +1,8 @@
+﻿node_modules/
+KataGo-master/
+katago-v1.16.3-eigen-windows-x64+bs50/
+nets/
+*.bin.gz
+*.bin_temp.gz
+katago-ui/data/
+katago-ui/all_22M.sgf

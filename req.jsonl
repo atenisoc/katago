@@ -1,0 +1,2 @@
+{"id":"pos1","rules":"japanese","komi":6.5,"boardXSize":9,"boardYSize":9,"moves":[["B","E5"]],"maxVisits":50}
+{"id":"pos2","rules":"japanese","komi":6.5,"boardXSize":19,"boardYSize":19,"moves":[["B","D4"],["W","Q16"]],"maxVisits":100}
