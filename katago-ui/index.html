@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>中盤限定囲碁（黒=あなた/白=AI）</title>
+<title>中盤限定囲碁E��黁EあなぁE白=AI�E�E/title>
 <style>
   body{font-family:system-ui,sans-serif;margin:16px;padding-right:12px;box-sizing:border-box;}
   .hud{margin:8px 0;display:flex;flex-direction:column;gap:8px;}
@@ -22,28 +22,28 @@
   width:calc(19 * 28px);
   height:calc(19 * 28px);
   background:url("./board_19x19_3.png") no-repeat center/100% 100%;
-  margin:0 auto;              /* ← 中央寄せ：左右に均等な余白ができる */
+  margin:0 auto;              /* ↁE中央寁E���E�左右に坁E��な余白ができる */
   float:none;
   }
 
-/* 盤の右に“指の逃げ場”と透明ヒットボックスを用意 */
+/* 盤の右に“指の送E��場”と透�Eヒット�EチE��スを用愁E*/
 .board-shelf{ position:relative; display:inline-block; }
 .hitbox-right{
   position:absolute; top:0; right:0; width:0; height:100%;
   pointer-events:auto; background:transparent;
 }
 
-/* スマホ時：右ガターを常に確保し、ヒットボックスを盤の外へ張り出す */
+/* スマ�E時：右ガターを常に確保し、ヒチE��ボックスを盤の外へ張り�EぁE*/
 @media (max-width: 640px){
   .board-shelf{ padding-right:max(24px, env(safe-area-inset-right, 0px)); }
-  .hitbox-right{ width:32px; transform:translateX(50%); } /* 盤の外へ約16px張り出し */
+  .hitbox-right{ width:32px; transform:translateX(50%); } /* 盤の外へ紁E6px張り�EぁE*/
 }
 
 
 
-/* スマホでの右端誤タップを防ぐための“安全マージン” */
+/* スマ�Eでの右端誤タチE�Eを防ぐため�E“安�Eマ�Eジン E*/
 @media (max-width: 640px) {
-  html,body { overscroll-behavior-x: contain; } /* 右端スワイプ戻る等を抑制（Androidで有効） */
+  html,body { overscroll-behavior-x: contain; } /* 右端スワイプ戻る等を抑制�E�Endroidで有効�E�E*/
   body { padding-left:12px; padding-right:max(24px, env(safe-area-inset-right)); }
 }
 
@@ -57,25 +57,25 @@
 
 .board.ended { opacity:.92; filter:grayscale(.1); }
 
-/* 楷書（教科書体系を最優先）— 端末にあれば自動で拾う */
+/* 楷書�E�教科書体系を最優先） E端末にあれば自動で拾ぁE*/
 #title{
   font-family:
-    /* JP: 游教科書体（iOS/macに多い） */
+    /* JP: 游教科書体！EOS/macに多い�E�E*/
     "YuKyokasho", "Yu Kyokasho", "YuKyokasho Pr6N", "Yu Kyokasho Pr6N",
-    /* JP: HG系（Windows環境で入っている場合あり） */
-    "HG教科書体", "HG正楷書体-PRO", "HGP正楷書体-PRO",
-    /* ZH: 楷体（端末により代替として表示） */
+    /* JP: HG系�E�Eindows環墁E��入ってぁE��場合あり！E*/
+    "HG教科書佁E, "HG正楷書佁EPRO", "HGP正楷書佁EPRO",
+    /* ZH: 楷体（端末により代替として表示�E�E*/
     "STKaiti", "KaiTi", "DFKai-SB",
     /* Fallbacks */
     "Yu Mincho", "Hiragino Mincho ProN", "MS PMincho",
     serif;
-  font-weight: 600;            /* 楷書らしいコントラスト */
-  letter-spacing: .05em;       /* ほんの少し字間を空けて整える */
+  font-weight: 600;            /* 楷書らしぁE��ントラスチE*/
+  letter-spacing: .05em;       /* ほん�E少し字間を空けて整える */
   line-height: 1.15;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "palt" 1, "kern" 1; /* プロポーショナル＆カーニング */
-  white-space: nowrap;         /* 折りたくない場合は保持 */
+  font-feature-settings: "palt" 1, "kern" 1; /* プロポ�Eショナル�E�E��ーニング */
+  white-space: nowrap;         /* 折りたくなぁE��合�E保持 */
   margin: 0 0 8px;
 }
 
@@ -85,26 +85,26 @@
 </style>
 </head>
 <body>
-  <h1 id="title"><b>中盤限定囲碁</b></h1>
+  <h1 id="title"><b>中盤限定囲碁E/b></h1>
 
   <div class="hud">
     <div class="hud-row">
       <div class="eval" id="eval">残り手数: -</div>
-      <div class="eval" id="evalFirst">黒勝率: （未計算）</div>
+      <div class="eval" id="evalFirst">黒勝玁E �E�未計算！E/div>
     </div>
 
 
     <div class="hud-row">
       <button id="sprintBtn">中盤読み込み</button>
       <button id="resetBtn">盤をクリア</button>
-      <label>強さ:
+      <label>強ぁE
         <select id="difficulty">
-          <option value="easy">弱い</option>
-          <option value="normal" selected>普通</option>
-          <option value="hard">強い</option>
+          <option value="easy">弱ぁE/option>
+          <option value="normal" selected>普送E/option>
+          <option value="hard">強ぁE/option>
         </select>
       </label>
-      <span class="info" id="status">黒番です。</span>
+      <span class="info" id="status">黒番です、E/span>
     </div>
   </div>
 
@@ -119,8 +119,8 @@
     <summary>判定ルール</summary>
     <div class="rules-box">
       <ul style="margin:0; padding-left:1.1em;">
-        <li>早期終了: <strong>10手以降</strong>、<strong>2回連続</strong>で <span class="nowrap">点差≥10目</span> または <span class="nowrap">勝率≥70%/≤30%</span> になった側の勝ち。</li>
-        <li>満了: 残り手数0で、その時点の <span class="nowrap">点差 or 勝率</span> で優勢側の勝ち。</li>
+        <li>早期終亁E <strong>10手以陁E/strong>、Estrong>2回連綁E/strong>で <span class="nowrap">点差≥10目</span> また�E <span class="nowrap">勝率≥70%/≤30%</span> になった�Eの勝ち、E/li>
+        <li>満亁E 残り手数0で、その時点の <span class="nowrap">点差 or 勝率</span> で優勢側の勝ち、E/li>
       </ul>
     </div>
   </details>
@@ -136,7 +136,7 @@ function ensureEvalFirst(){
   el = document.createElement('div');
   el.className = 'eval';
   el.id = 'evalFirst';
-  el.textContent = '黒勝率: （未計算）';
+  el.textContent = '黒勝玁E �E�未計算！E;
   parent.appendChild(el);
   return el;
 }
@@ -146,7 +146,7 @@ function setEvalFirst(text){
 }
 // --- end helpers ---
 
-/* ====== 基本状態 ====== */
+/* ====== 基本状慁E====== */
 const DEBUG = false;
 const N = 19, CELL = 28;
 const letters = "ABCDEFGHJKLMNOPQRST".split("");
@@ -159,7 +159,7 @@ const sprintBtn = document.getElementById('sprintBtn');
 const resetBtn  = document.getElementById('resetBtn');
 const evalFirstEl = document.getElementById('evalFirst') || ensureEvalFirst();
 
-// 右端ヒットボックス → 最右列(18)として処理
+// 右端ヒット�EチE��ス ↁE最右刁E18)として処琁E
 const hitboxRight = document.getElementById('hitboxRight');
 hitboxRight.addEventListener('pointerdown', async (e) => {
   e.preventDefault();
@@ -168,19 +168,19 @@ hitboxRight.addEventListener('pointerdown', async (e) => {
   const rect = boardEl.getBoundingClientRect();
   const relY = e.clientY - rect.top;
   const y = Math.floor(relY / CELL);
-  const x = N - 1; // 最右列
+  const x = N - 1; // 最右刁E
 
   if (y < 0 || y >= N) return;
 
   // 既存セルと同じ確定フロー
   if (ghost && ghost.x === x && ghost.y === y) {
     clearGhost();
-    if (!place('B', x, y)) { statusEl.textContent = "そこには打てません。"; return; }
+    if (!place('B', x, y)) { statusEl.textContent = "そこには打てません、E; return; }
     try { const humanMove = toCoord(x, y); window.AiMoveNLP?.reactToHumanMove?.(humanMove); } catch {}
     moves.push(["B", toCoord(x, y)]);
     endState.plies++; endState.movesLeft = getMovesLeft();
     draw(); updateStatusHud(null);
-    yourTurn = false; statusEl.textContent = "AI思考中…";
+    yourTurn = false; statusEl.textContent = "AI思老E��…";
     await aiReply();
   } else {
     showGhost(x, y);
@@ -188,13 +188,13 @@ hitboxRight.addEventListener('pointerdown', async (e) => {
 }, { passive:false });
 
 
-let board = Array.from({length:N},()=>Array(N).fill(0)); // 0=空,1=黒,2=白
+let board = Array.from({length:N},()=>Array(N).fill(0)); // 0=空,1=黁E2=白
 let moves = [];                 // [["B","K10"],["W","D16"],...]
-let yourTurn = true;            // 黒→白…の交代
-let blackBaseline = 0;          // 初期局面読み込み直後の黒手数
+let yourTurn = true;            // 黒�E白…の交代
+let blackBaseline = 0;          // 初期局面読み込み直後�E黒手数
 let moveLimit = 100;             // ① 残り手数
 let moveStart = 0;              // 残り手数の起点
-let firstEvalWinrate = null;    // 初手時の黒勝率（0..1）
+let firstEvalWinrate = null;    // 初手時�E黒勝玁E��E..1�E�E
 
 let gameOver = false;
 
@@ -207,20 +207,20 @@ function setBoardInteractive(flag){
 }
 
 
-/* ====== 終了判定(②)の設定 ====== */
+/* ====== 終亁E��宁E②)の設宁E====== */
 const END_RULE = {
   early: { scoreLeadAbs: 10.0, winrateEdge: 0.20, requireConsec: 2, minPlies: 10 },
-  onDepleted: "advantage" // ① moveLimit到達時は黒勝率で決定
+  onDepleted: "advantage" // ① moveLimit到達時は黒勝玁E��決宁E
 };
 const endState = { consec:0, plies:0, movesLeft:null };
 
-/* ====== ユーティリティ ====== */
+/* ====== ユーチE��リチE�� ====== */
 function toCoord(x,y){ return letters[x] + String(N-y); }
 function xyCenterPx(x,y){ return { left: x*CELL + CELL/2, top: y*CELL + CELL/2 }; }
 function neighbors(x,y){ return [[x-1,y],[x+1,y],[x,y-1],[x,y+1]].filter(([a,b])=>a>=0&&a<N&&b>=0&&b<N); }
 function getMovesLeft(){ const progressed = Math.max(0, moves.length - moveStart); return Math.max(0, moveLimit - progressed); }
 
-/* ====== 置石/取り除き ====== */
+/* ====== 置石/取り除ぁE====== */
 function flood(x,y,color,vis=new Set()){
   const key=`${x},${y}`; if(vis.has(key)) return {stones:[],libs:new Set()};
   vis.add(key);
@@ -256,9 +256,9 @@ function showGhost(x,y){
   ghost={x,y}; const p=xyCenterPx(x,y);
   ghostEl.style.left=p.left+'px'; ghostEl.style.top=p.top+'px';
   ghostEl.style.backgroundImage='url("./black.png")'; ghostEl.style.display='block';
-  statusEl.textContent="同じ点をもう一度タップで確定";
+  statusEl.textContent="同じ点をもぁE��度タチE�Eで確宁E;
   if(ghostTimer) clearTimeout(ghostTimer);
-  ghostTimer=setTimeout(()=>{ clearGhost(); statusEl.textContent="黒番です。着手してください。"; },2000);
+  ghostTimer=setTimeout(()=>{ clearGhost(); statusEl.textContent="黒番です。着手してください、E; },2000);
 }
 function clearGhost(){ ghost=null; ghostEl.style.display='none'; ghostEl.style.left='-9999px'; ghostEl.style.top='-9999px'; if(ghostTimer){clearTimeout(ghostTimer);ghostTimer=null;} }
 
@@ -273,22 +273,22 @@ function updateStatusHud(currentBlackWin=null){
   const remaining = getMovesLeft();
   document.getElementById("eval").textContent = `残り手数: ${remaining}`;
 
-// 受け取ってるのは白勝率 → 黒勝率へ反転
+// 受け取ってる�Eは白勝率 ↁE黒勝玁E��反転
 const nowBlack = (currentBlackWin == null) ? null : (1 - currentBlackWin);
 const baseBlack = (firstEvalWinrate == null) ? null : (1 - firstEvalWinrate);
 
-let text = '（未計算）';
+let text = '�E�未計算！E;
 if (nowBlack !== null) {
   text = `${(nowBlack * 100).toFixed(1)}%`;
   if (baseBlack !== null) {
     const diffPct = (nowBlack - baseBlack) * 100;
     const sign = diffPct >= 0 ? '+' : '';
-    text += ` （初手比 ${sign}${diffPct.toFixed(1)}%）`;
+    text += ` �E��E手毁E${sign}${diffPct.toFixed(1)}%�E�`;
   }
 }
 
 
-  setEvalFirst(`黒勝率: ${text}`);
+  setEvalFirst(`黒勝玁E ${text}`);
 }
 
 /* ====== 描画 ====== */
@@ -307,17 +307,17 @@ function draw(){
     cell.addEventListener('pointerdown', async (e)=>{
       if(e&&e.pointerType&&e.pointerType!=='mouse') e.preventDefault();
       
-  if (gameOver) { statusEl.textContent="終了しました。「盤をクリア」または「中盤読み込み」を押してください。"; return; }
+  if (gameOver) { statusEl.textContent="終亁E��ました。「盤をクリア」また�E「中盤読み込み」を押してください、E; return; }
   if(!yourTurn) return;
 
       if(ghost && ghost.x===x && ghost.y===y){
         clearGhost();
-        if(!place('B',x,y)){ statusEl.textContent="そこには打てません。"; return; }
+        if(!place('B',x,y)){ statusEl.textContent="そこには打てません、E; return; }
         try{ const humanMove=toCoord(x,y); window.AiMoveNLP?.reactToHumanMove?.(humanMove); }catch{}
         moves.push(["B",toCoord(x,y)]);
         endState.plies++; endState.movesLeft=getMovesLeft();
         draw(); updateStatusHud(null);
-        yourTurn=false; statusEl.textContent="AI思考中…";
+        yourTurn=false; statusEl.textContent="AI思老E��…";
         await aiReply();
       }else{
         showGhost(x,y);
@@ -327,7 +327,7 @@ function draw(){
   }
 }
 
-/* ====== KataGo応答 → 早期終了/残り手数終了 判定 ====== */
+/* ====== KataGo応筁EↁE早期終亁E残り手数終亁E判宁E====== */
 const REPORT_AS='PLAYER_TO_MOVE';
 function readAdvantage(kmsg){
   const root=kmsg?.rootInfo||kmsg; if(!root) return {mode:null};
@@ -360,14 +360,14 @@ function checkDepleted(kmsg){
   return {winner:a.leader, reason:a.mode==="score"?"scoreLead":"winrate", value:a.value};
 }
 function finishGame(verdict){
-  const who = verdict.winner==='B'?"黒":(verdict.winner==='W'?"白":"（不明）");
+  const who = verdict.winner==='B'?"黁E:(verdict.winner==='W'?"白":"�E�不�E�E�E);
   const label = verdict.reason==='scoreLead'
     ? `点差 ${verdict.value?.toFixed?.(1)}`
     : verdict.reason==='winrate'
-    ? `勝率差 ${(Math.abs((verdict.value||0))*100).toFixed(1)}%` : "黒勝率不明";
-  statusEl.textContent=`終了: ${who} の勝ち（${label}）`;
+    ? `勝率差 ${(Math.abs((verdict.value||0))*100).toFixed(1)}%` : "黒勝玁E���E";
+  statusEl.textContent=`終亁E ${who} の勝ち�E�E{label}�E�`;
 
-  // 盤面だけ無効化。ボタンは使える（「中盤読み込み」「盤をクリア」など）
+  // 盤面だけ無効化。�Eタンは使える�E�「中盤読み込み」「盤をクリア」など�E�E
   setBoardInteractive(false);
   sprintBtn.disabled = false;
   resetBtn.disabled  = false;
@@ -376,38 +376,38 @@ function finishGame(verdict){
 (el=>el.disabled=true);
 }
 
-/* ====== AI応答 ====== */
+/* ====== AI応筁E====== */
 async function aiReply(){
   try{
     const diff = document.getElementById('difficulty').value || 'normal';
     const visits = diff === "easy" ? 2 : diff === "hard" ? 128 : 64;
 
-    // 1) 選択エンジンで着手を計算
+    // 1) 選択エンジンで着手を計箁E
     const analyzePayload = { rules:"japanese", komi:6.5, boardXSize:N, boardYSize:N, maxVisits:visits, moves };
     const aResp = await fetch(`/api/analyze?engine=${encodeURIComponent(diff)}`, {
       method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(analyzePayload)
+      body: JSON.stringify({...analyzePayload, maxVisits: (selEngine==="easy"?4:8)})
     });
     const aData = await aResp.json();
     if (DEBUG) { lastEl.style.display='block'; lastEl.textContent = JSON.stringify(aData.katago,null,2); }
 
-    // 2) 判定は hard 固定で取得
+    // 2) 判定�E hard 固定で取征E
     const evalPayload = { rules:"japanese", komi:6.5, boardXSize:N, boardYSize:N, maxVisits:128, moves };
     const eResp = await fetch(`/api/eval`, {
       method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(evalPayload)
+      body: JSON.stringify({...evalPayload, maxVisits: 8})
     });
     const eData = await eResp.json();
 
-    // 表示用（hard のモデル名を出す）
+    // 表示用�E�Eard のモチE��名を出す！E
     const judgeModel = eData?.modelName || "unknown";
-    if (statusEl) statusEl.textContent = `判定: hard / ${judgeModel}（AI思考中…）`;
+    if (statusEl) statusEl.textContent = `判宁E hard / ${judgeModel}�E�EI思老E��…�E�`;
 
-    // 黒勝率を黒手番視点で
+    // 黒勝玁E��黒手番視点で
     let blackWin = null;
     if (typeof eData?.winrateBlack === "number") blackWin = eData.winrateBlack;
 
-    // 初手評価の保存（あなたの最初の黒手）
+    // 初手評価の保存（あなた�E最初�E黒手�E�E
     if (blackWin !== null) {
       const blackCount = moves.filter(([bw])=>bw==="B").length;
       const isUsersFirstBlack = blackCount === blackBaseline + 1;
@@ -426,25 +426,25 @@ async function aiReply(){
 
     updateStatusHud(blackWin);
 
-    // 早期終了/満了判定は hard 評価で
+    // 早期終亁E満亁E��定�E hard 評価で
     const kmsg = eData?.katago || null;
     const early = kmsg && checkEarlyEnd(kmsg);
     if (early){ finishGame(early); return; }
     const dep = kmsg && checkDepleted(kmsg);
     if (dep){ finishGame(dep); return; }
 
-    // 3) 実際の着手は analyze の最善手
+    // 3) 実際の着手�E analyze の最喁E��
     const mv = aData.bestMove;
-    if(!mv){ statusEl.textContent="AIの手が得られませんでした。"; yourTurn=true; return; }
+    if(!mv){ statusEl.textContent="AIの手が得られませんでした、E; yourTurn=true; return; }
     const x=letters.indexOf(mv[0]); const y=N-parseInt(mv.slice(1),10);
-    if(x<0||y<0||x>=N||y>=N){ statusEl.textContent=`不正な手: ${mv}`; yourTurn=true; return; }
-    if(!place('W',x,y)){ statusEl.textContent=`AI手(${mv})が置けません。`; yourTurn=true; draw(); return; }
+    if(x<0||y<0||x>=N||y>=N){ statusEl.textContent=`不正な扁E ${mv}`; yourTurn=true; return; }
+    if(!place('W',x,y)){ statusEl.textContent=`AI扁E${mv})が置けません。`; yourTurn=true; draw(); return; }
     moves.push(["W",mv]);
     endState.plies++; endState.movesLeft=getMovesLeft();
     draw(); updateStatusHud(blackWin);
 
     try{ window.AiMoveNLP?.describe?.({bestMove:mv, katago:aData.katago, moves}); }catch{}
-    statusEl.textContent="黒番です。"; yourTurn=true;
+    statusEl.textContent="黒番です、E; yourTurn=true;
   }catch(e){
     statusEl.textContent="通信エラー: "+e; yourTurn=true;
   }
@@ -462,7 +462,7 @@ function applyMoves(mvList){
   draw();
   const blackToMove=(moves.length%2===0);
   yourTurn=blackToMove;
-  statusEl.textContent = blackToMove ? "黒番です（ランダム初期盤面）。" : "白番です。AIの着手を待っています…";
+  statusEl.textContent = blackToMove ? "黒番です（ランダム初期盤面�E�、E : "白番です、EIの着手を征E��てぁE��す…";
   if(!blackToMove) aiReply();
 
   blackBaseline = moves.filter(([bw])=>bw==="B").length;
@@ -472,11 +472,11 @@ function applyMoves(mvList){
   updateStatusHud(null);
 }
 
-/* ====== UIイベント ====== */
+/* ====== UIイベンチE====== */
 sprintBtn.addEventListener("click", async ()=>{
   statusEl.textContent="初期局面を取得中…";
   const resp=await fetch("/api/sprint/random"); const data=await resp.json();
-  if(!data.ok){ statusEl.textContent="初期局面取得失敗: "+(data.error||""); return; }
+  if(!data.ok){ statusEl.textContent="初期局面取得失敁E "+(data.error||""); return; }
   applyMoves(data.moves||[]);
   if(DEBUG){ lastEl.style.display='block'; lastEl.textContent="Loaded recId: "+(data.recId??"(unknown)")+"\n"+JSON.stringify({moves:data.moves},null,2); }
   moveLimit=20; updateStatusHud(null);
@@ -485,11 +485,11 @@ resetBtn.addEventListener('click', ()=>{
 setBoardInteractive(true);
   firstEvalWinrate=null; updateStatusHud(null); clearGhost();
   board=Array.from({length:N},()=>Array(N).fill(0)); moves=[]; yourTurn=true; moveStart=moves.length;
-  lastEl.textContent=""; statusEl.textContent="黒番です。着手してください。";
+  lastEl.textContent=""; statusEl.textContent="黒番です。着手してください、E;
   blackBaseline=0; localStorage.removeItem('firstEval'); renderFirstEvalFromStorage(); draw();
 });
 
-/* ====== 初期化 ====== */
+/* ====== 初期匁E====== */
 localStorage.removeItem('firstEval'); renderFirstEvalFromStorage(); updateStatusHud(null); draw();
 </script>
 <script src="./aiComment.js"></script>
