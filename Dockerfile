@@ -2,20 +2,21 @@
 
 # OS deps（git-lfs とランタイム）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git git-lfs libzip4 ocl-icd-libopencl1 libgomp1 ca-certificates wget \
+    git git-lfs libzip4 ocl-icd-libopencl1 libgomp1 ca-certificates \
  && git lfs install \
  && rm -rf /var/lib/apt/lists/*
 
-# libssl1.1（libcrypto.so.1.1）を bullseye セキュリティから取得
-RUN wget -O /tmp/libssl1.1.deb \
-     http://security.debian.org/debian-security/pool/updates/main/o/openssl1.1/libssl1.1_1.1.1w-0+deb11u2_amd64.deb \
- && apt-get update && apt-get install -y /tmp/libssl1.1.deb \
- && rm -f /tmp/libssl1.1.deb
+# libssl1.1 を bullseye から取得（bookworm には無い）
+RUN echo 'deb http://deb.debian.org/debian bullseye main' > /etc/apt/sources.list.d/bullseye.list \
+ && echo 'deb http://security.debian.org/debian-security bullseye-security main' > /etc/apt/sources.list.d/bullseye-security.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends libssl1.1 \
+ && rm -rf /var/lib/apt/lists/*
 
 # リポジトリを .git ごとクローン（LFS 用）
 WORKDIR /app
-RUN git clone --depth=1 https://github.com/atenisoc/katago.git .
-RUN git lfs pull
+RUN git clone --depth=1 https://github.com/atenisoc/katago.git . \
+ && git lfs pull
 
 # 実行権
 RUN chmod +x engines/bin/katago || true
