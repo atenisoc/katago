@@ -21,17 +21,20 @@ RUN git clone --depth=1 https://github.com/atenisoc/katago.git . \
 # 実行権
 RUN chmod +x engines/bin/katago || true
 
-# 解析用 config をイメージ内で生成（BOMなし / LF / key=value）
+# analysis.cfg をイメージ内で確実に生成（BOMなし/LF）し、内容を表示
 RUN set -eux; \
-    for e in easy_b6 normal_b10 hard_b18; do \
-      mkdir -p engines/$e; \
-      printf '%s\n' \
-        'numSearchThreads=1' \
-        'maxVisits=4' \
-        'reportAnalysisWinratesAs=BLACK' \
-        'analysisPVLen=10' \
+  for e in easy_b6 normal_b10 hard_b18; do \
+    mkdir -p engines/$e; \
+    printf '%s\n' \
+      'numAnalysisThreads = 1' \
+      'numSearchThreads   = 1' \
+      'maxVisits          = 4' \
+      'analysisPVLen      = 10' \
+      'reportAnalysisWinratesAs = BLACK' \
       > engines/$e/analysis.cfg; \
-    done
+    echo "== DUMP: engines/$e/analysis.cfg =="; sed -n '1,8p' engines/$e/analysis.cfg; \
+  done
+
 
 # 事前チェック：KataGo が起動できるか（失敗時に ldd を出す）
 RUN /app/engines/bin/katago version || (ldd /app/engines/bin/katago; exit 1)
