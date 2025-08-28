@@ -17,9 +17,6 @@ const readline = require("readline");
 require('dotenv').config({ path: '.env.local' });
 
 
-// server.js のどこか（起動前に読み込まれる場所）
-const path = require('path');
-const fs = require('fs');
 
 const base = path.join(__dirname, 'engines');
 
