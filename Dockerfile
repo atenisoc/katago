@@ -1,1 +1,25 @@
-FROM node:20-bullseye# git と git-lfs を入れるRUN apt-get update && apt-get install -y git git-lfs libzip4 ocl-icd-libopencl1 && git lfs install# /app にクローン（.git を含むので LFS を使える）WORKDIR /appRUN git clone --depth=1 https://github.com/atenisoc/katago.git .# LFS 実体を取得（katago 本体と weights）RUN git lfs pull# KataGo 実行権RUN chmod +x engines/bin/katago || true# 依存インストールWORKDIR /app/katago-uiRUN npm ci || npm i# Render の $PORT で待ち受け（server.js が PORT を読む実装になっていること）CMD ["node","server.js"]
+@'
+FROM node:20-bullseye
+
+# OS deps: git-lfs とランタイムライブラリ
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git git-lfs libzip4 ocl-icd-libopencl1 ca-certificates \
+ && git lfs install \
+ && rm -rf /var/lib/apt/lists/*
+
+# リポジトリを .git ごとクローン（LFSのため）
+WORKDIR /app
+RUN git clone --depth=1 https://github.com/atenisoc/katago.git .
+
+# LFS 実体を取得（katago と weights）
+RUN git lfs pull
+
+# 実行権
+RUN chmod +x engines/bin/katago || true
+
+# UI の依存をインストール（server.js はリポジトリ直下で動かす）
+RUN npm --prefix katago-ui ci || npm --prefix katago-ui i
+
+# Render が渡す $PORT を server.js が読む想定
+CMD ["node","server.js"]
+'@ | Set-Content -Encoding UTF8 Dockerfile
