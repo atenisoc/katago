@@ -1,23 +1,2 @@
-ï»¿FROM node:20-bullseye
-
-# OS deps: git-lfs ã¨ãƒ©ãƒ³ã‚¿ã‚¤ãƒ ãƒ©ã‚¤ãƒ–ãƒ©ãƒª
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git git-lfs libzip4 ocl-icd-libopencl1 ca-certificates \
- && git lfs install \
- && rm -rf /var/lib/apt/lists/*
-
-# ãƒªãƒã‚¸ãƒˆãƒªã‚’ .git ã”ã¨ã‚¯ãƒ­ãƒ¼ãƒ³ï¼ˆLFSã®ãŸã‚ï¼‰
-WORKDIR /app
-RUN git clone --depth=1 https://github.com/atenisoc/katago.git .
-
-# LFS å®Ÿä½“ã‚’å–å¾—ï¼ˆkatago ã¨ weightsï¼‰
-RUN git lfs pull
-
-# å®Ÿè¡Œæ¨©
-RUN chmod +x engines/bin/katago || true
-
-# UI ã®ä¾å­˜ã‚¤ãƒ³ã‚¹ãƒˆãƒ¼ãƒ«
-RUN npm --prefix katago-ui ci || npm --prefix katago-ui i
-
-# Render ãŒæ¸¡ã™  ã‚’ server.js ãŒèª­ã‚€æƒ³å®šï¼ˆãƒªãƒã‚¸ãƒˆãƒªç›´ä¸‹ã§èµ·å‹•ï¼‰
-CMD ["node","server.js"]
+FROM node:20-bullseye# OS deps: git-lfs ‚Æƒ‰ƒ“ƒ^ƒCƒ€ƒ‰ƒCƒuƒ‰ƒŠRUN apt-get update && apt-get install -y --no-install-recommends \    git git-lfs libzip4 ocl-icd-libopencl1 ca-certificates \ && git lfs install \ && rm -rf /var/lib/apt/lists/*# ƒŠƒ|ƒWƒgƒŠ‚ğ .git ‚²‚ÆƒNƒ[ƒ“iLFS‚Ì‚½‚ßjWORKDIR /appRUN git clone --depth=1 https://github.com/atenisoc/katago.git .# LFS À‘Ì‚ğæ“¾ikatago ‚Æ weightsjRUN git lfs pull# ÀsŒ RUN chmod +x engines/bin/katago || true# UI ‚ÌˆË‘¶ƒCƒ“ƒXƒg[ƒ‹RUN npm ci || npm i
+RUN npm --prefix katago-ui ci || npm --prefix katago-ui i# Render ‚ª“n‚·  ‚ğ server.js ‚ª“Ç‚Ş‘z’èiƒŠƒ|ƒWƒgƒŠ’¼‰º‚Å‹N“®jCMD ["node","server.js"]
