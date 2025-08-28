@@ -1,2 +1,29 @@
-FROM node:20-bullseye# OS deps: git-lfs ‚Æƒ‰ƒ“ƒ^ƒCƒ€ƒ‰ƒCƒuƒ‰ƒŠRUN apt-get update && apt-get install -y --no-install-recommends \    git git-lfs libzip4 ocl-icd-libopencl1 ca-certificates \ && git lfs install \ && rm -rf /var/lib/apt/lists/*# ƒŠƒ|ƒWƒgƒŠ‚ğ .git ‚²‚ÆƒNƒ[ƒ“iLFS‚Ì‚½‚ßjWORKDIR /appRUN git clone --depth=1 https://github.com/atenisoc/katago.git .# LFS À‘Ì‚ğæ“¾ikatago ‚Æ weightsjRUN git lfs pull# ÀsŒ RUN chmod +x engines/bin/katago || true# UI ‚ÌˆË‘¶ƒCƒ“ƒXƒg[ƒ‹RUN npm ci || npm i
-RUN npm --prefix katago-ui ci || npm --prefix katago-ui i# Render ‚ª“n‚·  ‚ğ server.js ‚ª“Ç‚Ş‘z’èiƒŠƒ|ƒWƒgƒŠ’¼‰º‚Å‹N“®jCMD ["node","server.js"]
+ï»¿FROM node:20-bullseye
+
+# OS depsï¼ˆgit-lfs ã¨ãƒ©ãƒ³ã‚¿ã‚¤ãƒ ï¼‰
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git git-lfs libzip4 ocl-icd-libopencl1 libgomp1 ca-certificates \
+ && git lfs install \
+ && rm -rf /var/lib/apt/lists/*
+
+# å…±æœ‰ãƒ©ã‚¤ãƒ–ãƒ©ãƒªæ¤œç´¢ãƒ‘ã‚¹ã‚’æ˜ç¤º
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:
+
+# ãƒªãƒã‚¸ãƒˆãƒªã‚’ .git ã”ã¨ã‚¯ãƒ­ãƒ¼ãƒ³ï¼ˆLFS ç”¨ï¼‰
+WORKDIR /app
+RUN git clone --depth=1 https://github.com/atenisoc/katago.git .
+RUN git lfs pull
+
+# å®Ÿè¡Œæ¨©
+RUN chmod +x engines/bin/katago || true
+
+# äº‹å‰ãƒã‚§ãƒƒã‚¯ï¼šlibzip / OpenCL ã®å­˜åœ¨ã¨ katago ã®èµ·å‹•ç¢ºèª
+RUN ldconfig -p | grep -E 'libzip\.so|OpenCL' || true
+RUN /app/engines/bin/katago version || (ldd /app/engines/bin/katago; exit 1)
+
+# Node ä¾å­˜ï¼ˆãƒ«ãƒ¼ãƒˆã¨ UI ä¸¡æ–¹ï¼‰
+RUN npm ci || npm i
+RUN npm --prefix katago-ui ci || npm --prefix katago-ui i
+
+# èµ·å‹•
+CMD ["node","server.js"]
