@@ -1,23 +1,21 @@
-# Node 20 / Debian bookworm（glibc 2.36系）
-FROM node:20-bookworm-slim
+FROM node:20-bullseye
 
-# ベースツール
-RUN apt-get update && apt-get install -y     ca-certificates curl unzip  && rm -rf /var/lib/apt/lists/*
+# 1) git-lfs を入れる
+RUN apt-get update && apt-get install -y git-lfs && git lfs install
 
 WORKDIR /app
 
-# 依存インストール
-COPY package*.json ./
-RUN npm ci
-
-# ソースとエンジンをコピー
+# 2) リポジトリをコピー（LFS ポインタ込み）
 COPY . .
 
-# KataGo 実行権限
-RUN chmod +x /app/engines/bin/katago
+# 3) LFS 実体を取得（※ここで engines/bin/katago と weights が落ちてくる）
+RUN git lfs pull
 
-# ポート公開（server.js が 5173 を使う想定）
-EXPOSE 5173
+# 4) 実行権
+RUN chmod +x engines/bin/katago || true
 
-# 初回起動時に重みが無ければ自動DL、続けてサーバ起動
-CMD node scripts/bootstrap-weights.js && node server.js
+# 5) 依存インストール
+WORKDIR /app/katago-ui
+RUN npm ci || npm i
+
+CMD ["node","server.js"]

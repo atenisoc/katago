@@ -1,13 +1,6 @@
 services:
   - type: web
     name: katago-ui
-    env: node
-    plan: free
-    buildCommand: |
-      git lfs install
-      git lfs pull
-      npm install
-    startCommand: node server.js
-    envVars:
-      - key: NODE_ENV
-        value: production
+    env: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
