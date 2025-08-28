@@ -1,30 +1,10 @@
+# render.yaml （任意。GUIで設定するなら不要）
 services:
   - type: web
     name: katago-ui
-    env: docker
+    runtime: docker
     plan: free
-    autoDeploy: true
     envVars:
       - key: PORT
         value: "5173"
-
-      - key: KATAGO_EASY_EXE
-        value: /app/engines/bin/katago
-      - key: KATAGO_EASY_CFG
-        value: /app/engines/easy_b6/analysis.cfg
-      - key: KATAGO_EASY_MODEL
-        value: /app/engines/easy_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz
-
-      - key: KATAGO_NORMAL_EXE
-        value: /app/engines/bin/katago
-      - key: KATAGO_NORMAL_CFG
-        value: /app/engines/normal_b10/analysis.cfg
-      - key: KATAGO_NORMAL_MODEL
-        value: /app/engines/normal_b10/weights/kata1-b6c96-s175395328-d26788732.txt.gz
-
-      - key: KATAGO_HARD_EXE
-        value: /app/engines/bin/katago
-      - key: KATAGO_HARD_CFG
-        value: /app/engines/hard_b18/analysis.cfg
-      - key: KATAGO_HARD_MODEL
-        value: /app/engines/hard_b18/weights/kata1-b10c128-s1141046784-d204142634.txt.gz
+    autoDeploy: true

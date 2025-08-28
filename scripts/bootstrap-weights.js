@@ -1,57 +1,62 @@
 // scripts/bootstrap-weights.js
-// 起動時に KataGo の重みが無ければダウンロードします。
-// 既に存在する場合は何もしません。
-
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const plans = [
-  {
-    name: 'easy_b6',
-    file: 'kata1-b6c96-s50894592-d7380655.txt.gz',
-    url:  'https://media.katagotraining.org/uploaded/networks/kata1/kata1-b6c96-s50894592-d7380655.txt.gz'
-  },
-  {
-    name: 'normal_b10',
-    file: 'kata1-b10c128-s1141046784-d204142634.txt.gz',
-    url:  'https://media.katagotraining.org/uploaded/networks/kata1/kata1-b10c128-s1141046784-d204142634.txt.gz'
-  },
-  {
-    name: 'hard_b18',
-    file: 'kata1-b18c256-s1929312256-d418716293.txt.gz',
-    url:  'https://media.katagotraining.org/uploaded/networks/kata1/kata1-b18c256-s1929312256-d418716293.txt.gz'
-  }
-];
+const WDIR = path.join(__dirname, '..', 'engines', 'weights');
+fs.mkdirSync(WDIR, { recursive: true });
 
-function download(url, dst) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dst);
+function download(url, out) {
+  return new Promise((resolve) => {
+    const file = fs.createWriteStream(out);
     https.get(url, res => {
       if (res.statusCode !== 200) {
-        return reject(new Error('HTTP ' + res.statusCode + ' for ' + url));
+        console.warn(`[bootstrap] WARN ${res.statusCode} for ${url}`);
+        try { fs.unlinkSync(out); } catch {}
+        return resolve(false);
       }
       res.pipe(file);
-      file.on('finish', () => file.close(resolve));
-    }).on('error', reject);
+      file.on('finish', () => file.close(() => resolve(true)));
+    }).on('error', err => {
+      console.warn(`[bootstrap] WARN ${url} -> ${err.message}`);
+      try { fs.unlinkSync(out); } catch {}
+      resolve(false);
+    });
   });
 }
 
-(async () => {
-  for (const p of plans) {
-    const dir = path.join(__dirname, '..', 'engines', p.name, 'weights');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const dst = path.join(dir, p.file);
-    if (fs.existsSync(dst)) {
-      console.log(`[bootstrap] ${p.name} weight already exists:`, p.file);
-      continue;
-    }
-    console.log('[bootstrap] downloading', p.url);
-    await download(p.url, dst);
-    console.log('[bootstrap] downloaded ->', dst);
+async function ensure(name, url) {
+  const out = path.join(WDIR, name);
+  if (fs.existsSync(out)) {
+    console.log(`[bootstrap] ${name} already exists`);
+    return true;
   }
+  console.log(`[bootstrap] downloading ${url}`);
+  const ok = await download(url, out);
+  if (!ok) console.warn(`[bootstrap] failed to fetch ${name} (continuing without it)`);
+  return ok;
+}
+
+(async () => {
+  // 軽量: 6b (kata1 b6) そのまま
+  await ensure(
+    'kata1-b6c96-s50894592-d7380655.txt.gz',
+    'https://media.katagotraining.org/uploaded/networks/kata1/kata1-b6c96-s50894592-d7380655.txt.gz'
+  );
+
+  // 通常: 10b (g170e) — 旧小型ネット。CPU でも回せる強さ/サイズのバランス
+  await ensure(
+    'g170e-b10c128-s1141046784-d204142634.bin.gz',
+    'https://media.katagotraining.org/uploaded/networks/g170e/g170e-b10c128-s1141046784-d204142634.bin.gz'
+  );
+
+  // 重い: 15b (g170e) — 必要なら使う。CPU では重いので任意
+  // await ensure(
+  //   'g170e-b15c192-s1672170752-d466197061.bin.gz',
+  //   'https://media.katagotraining.org/uploaded/networks/g170e/g170e-b15c192-s1672170752-d466197061.bin.gz'
+  // );
+
   console.log('[bootstrap] done');
-})().catch(e => {
-  console.error('[bootstrap] failed:', e);
-  process.exit(1);
-});
+  // ダウンロード失敗があってもプロセスは成功終了
+  process.exit(0);
+})();

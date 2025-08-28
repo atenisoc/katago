@@ -16,24 +16,43 @@ const readline = require("readline");
 // ====== env 読み込み ======
 require('dotenv').config({ path: '.env.local' });
 
-// ====== エンジン定義（環境変数 > 既定パス） ======
+
+// server.js のどこか（起動前に読み込まれる場所）
+const path = require('path');
+const fs = require('fs');
+
+const base = path.join(__dirname, 'engines');
+
 const ENGINES = {
+  // 弱い（b6）
   easy: {
-    exe:   process.env.KATAGO_EASY_EXE   || "C:\\\\tools\\\\katago\\\\engines\\\\easy_b6\\\\katago.exe",
-    model: process.env.KATAGO_EASY_MODEL || "C:\\\\tools\\\\katago\\\\engines\\\\easy_b6\\\\weights\\\\kata1-b6c96-s50894592-d7380655.txt.gz",
-    cfg:   process.env.KATAGO_EASY_CFG   || "C:\\\\tools\\\\katago\\\\engines\\\\easy_b6\\\\analysis.cfg",
+    exe:   process.env.KATAGO_EASY_EXE   || path.join(base, 'bin/katago'),
+    model: process.env.KATAGO_EASY_MODEL || path.join(base, 'easy_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz'),
+    cfg:   process.env.KATAGO_EASY_CFG   || path.join(base, 'easy_b6/analysis.cfg'),
   },
+  // 普通（b10）
   normal: {
-    exe:   process.env.KATAGO_NORMAL_EXE   || "C:\\\\tools\\\\katago\\\\engines\\\\normal_b10\\\\katago.exe",
-    model: process.env.KATAGO_NORMAL_MODEL || "C:\\\\tools\\\\katago\\\\engines\\\\normal_b10\\\\weights\\\\kata1-b10c128-s1141046784-d204142634.txt.gz",
-    cfg:   process.env.KATAGO_NORMAL_CFG   || "C:\\\\tools\\\\katago\\\\engines\\\\normal_b10\\\\analysis.cfg",
+    exe:   process.env.KATAGO_NORMAL_EXE   || path.join(base, 'bin/katago'),
+    model: process.env.KATAGO_NORMAL_MODEL || path.join(base, 'normal_b10/weights/g170e-b10c128-s1141046784-d204142634.bin.gz'),
+    cfg:   process.env.KATAGO_NORMAL_CFG   || path.join(base, 'normal_b10/analysis.cfg'),
   },
-  hard: { // 評価用
-    exe:   process.env.KATAGO_HARD_EXE   || "C:\\\\tools\\\\katago\\\\engines\\\\hard_b18\\\\katago.exe",
-    model: process.env.KATAGO_HARD_MODEL || "C:\\\\tools\\\\katago\\\\engines\\\\hard_b18\\\\weights\\\\kata1-b10c128-s1141046784-d204142634.txt.gz",
-    cfg:   process.env.KATAGO_HARD_CFG   || "C:\\\\tools\\\\katago\\\\engines\\\\hard_b18\\\\analysis.cfg",
-  },
+  // 強い（b18）
+  hard: {
+    exe:   process.env.KATAGO_HARD_EXE   || path.join(base, 'bin/katago'),
+    model: process.env.KATAGO_HARD_MODEL || path.join(base, 'hard_b18/weights/kata1-b18c256-s1929312256-d418716293.txt.gz'),
+    cfg:   process.env.KATAGO_HARD_CFG   || path.join(base, 'hard_b18/analysis.cfg'),
+  }
 };
+
+
+
+// （任意：起動時チェック）
+for (const e of Object.values(ENGINES)) {
+  ['exe','cfg'].forEach(k => {
+    if (!fs.existsSync(e[k])) throw new Error(`missing ${k}: ${e[k]}`);
+  });
+}
+
 
 function logEngine(name, e) {
   console.log(`[${name}] exe=${e.exe}`);
