@@ -3,7 +3,7 @@ const fs = require('fs');
 const nodePath = require('path');
 const https = require('https');
 
-const WDIR = path.join(__dirname, '..', 'engines', 'weights');
+const WDIR = nodePath.join(__dirname, '..', 'engines', 'weights');
 fs.mkdirSync(WDIR, { recursive: true });
 
 function download(url, out) {
@@ -26,7 +26,7 @@ function download(url, out) {
 }
 
 async function ensure(name, url) {
-  const out = path.join(WDIR, name);
+  const out = nodePath.join(WDIR, name);
   if (fs.existsSync(out)) {
     console.log(`[bootstrap] ${name} already exists`);
     return true;
@@ -38,25 +38,25 @@ async function ensure(name, url) {
 }
 
 (async () => {
-  // 軽量: 6b (kata1 b6) そのまま
+  // 軽釁E 6b (kata1 b6) そ�Eまま
   await ensure(
     'kata1-b6c96-s50894592-d7380655.txt.gz',
     'https://media.katagotraining.org/uploaded/networks/kata1/kata1-b6c96-s50894592-d7380655.txt.gz'
   );
 
-  // 通常: 10b (g170e) — 旧小型ネット。CPU でも回せる強さ/サイズのバランス
+  // 通常: 10b (g170e)  E旧小型ネット、EPU でも回せる強ぁEサイズのバランス
   await ensure(
     'g170e-b10c128-s1141046784-d204142634.bin.gz',
     'https://media.katagotraining.org/uploaded/networks/g170e/g170e-b10c128-s1141046784-d204142634.bin.gz'
   );
 
-  // 重い: 15b (g170e) — 必要なら使う。CPU では重いので任意
+  // 重い: 15b (g170e)  E忁E��なら使ぁE��EPU では重いので任愁E
   // await ensure(
   //   'g170e-b15c192-s1672170752-d466197061.bin.gz',
   //   'https://media.katagotraining.org/uploaded/networks/g170e/g170e-b15c192-s1672170752-d466197061.bin.gz'
   // );
 
   console.log('[bootstrap] done');
-  // ダウンロード失敗があってもプロセスは成功終了
+  // ダウンロード失敗があっても�Eロセスは成功終亁E
   process.exit(0);
 })();
