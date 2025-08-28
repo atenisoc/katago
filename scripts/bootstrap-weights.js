@@ -1,6 +1,6 @@
 // scripts/bootstrap-weights.js
 const fs = require('fs');
-const path = require('path');
+const nodePath = require('path');
 const https = require('https');
 
 const WDIR = path.join(__dirname, '..', 'engines', 'weights');
