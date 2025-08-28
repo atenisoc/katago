@@ -1,20 +1,19 @@
 FROM node:20-bullseye
 
-# 1) git-lfs を入れる
-RUN apt-get update && apt-get install -y git-lfs && git lfs install
+# git と git-lfs を入れる
+RUN apt-get update && apt-get install -y git git-lfs && git lfs install
 
+# レポジトリをクローン（Public想定）
 WORKDIR /app
+RUN git clone --depth=1 https://github.com/atenisoc/katago.git .
 
-# 2) リポジトリをコピー（LFS ポインタ込み）
-COPY . .
-
-# 3) LFS 実体を取得（※ここで engines/bin/katago と weights が落ちてくる）
+# LFS 実ファイルを取得
 RUN git lfs pull
 
-# 4) 実行権
+# 実行権
 RUN chmod +x engines/bin/katago || true
 
-# 5) 依存インストール
+# 依存インストール
 WORKDIR /app/katago-ui
 RUN npm ci || npm i
 
