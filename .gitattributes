@@ -1,0 +1,4 @@
+﻿# KataGo binaries and large weights via LFS
+engines/**/katago     filter=lfs diff=lfs merge=lfs -text
+engines/**/katago.exe filter=lfs diff=lfs merge=lfs -text
+engines/**/weights/*.txt.gz filter=lfs diff=lfs merge=lfs -text
