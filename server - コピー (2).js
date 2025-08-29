@@ -14,10 +14,7 @@ const fs        = require("fs");
 const { spawn } = require("child_process");
 const readline  = require("readline");
 
- // 本番(Render)では .env.local を読まない（PORT 等の上書きを避ける） // ★変更
- if (process.env.NODE_ENV !== "production") {
-   require("dotenv").config({ path: ".env.local" });
- }
+require("dotenv").config({ path: ".env.local" });
 
 const app  = express();
 const PORT = process.env.PORT || 5173;
@@ -158,21 +155,8 @@ function askKatago(name, payload, timeoutMs = 30000) {
 // 起動（有効なものだけ）
 for (const name of Object.keys(ENGINES)) spawnEngine(name);
 
- // 起動直後のウォームアップ（モデルをロードして初回を軽くする） // ★変更
- async function warmup() {
-   const payload = { boardXSize:9, boardYSize:9, rules:"japanese", komi:6.5, moves:[], maxVisits:1 };
-   for (const n of ["easy","normal","hard"]) {
-     if (!disabled[n] && procs[n] && !procs[n].proc.killed) {
-       try { await askKatago(n, payload, 8000); } catch {}
-     }
-   }
- }
-
 // ========= Health =========
-
- // Render のヘルスチェック用。200 応答が無難 // ★変更
- app.get("/healthz", (_req, res) => res.status(200).send("ok"));
-
+app.get("/healthz", (_req, res) => res.status(204).end());
 app.get("/engines", (_req, res) => {
   const list = Object.keys(ENGINES).map((name) => ({
     name,
@@ -275,14 +259,9 @@ app.post("/api/comment", async (req, res) => {
 });
 
 // ========= Start & graceful shutdown =========
- // ========= Start & graceful shutdown =========
- const HOST = process.env.HOST || "0.0.0.0";          // ★変更
- const server = app.listen(PORT, HOST, () => {        // ★変更
-   const addr = server.address();                      // ★変更
-   console.log(`Server listening on http://${addr.address}:${addr.port}`); // ★変更
-   warmup();                                           // ★変更
- });
-
+app.listen(PORT, () => {
+  console.log(`Server listening on http://localhost:${PORT}`);
+});
 
 function shutdown() {
   console.log("Shutting down engines...");
