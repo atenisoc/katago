@@ -1,12 +1,16 @@
 /**
- * server.js (multi-engine, robust)
- * - Static hosting for index.html
- * - KataGo engines: easy(b6) / normal(b10) / hard(b18)
- * - /api/analyze?engine=easy|normal|hard
- * - /api/eval 旧互換: 強い方で1回だけ評価（hard→normal→easyの順でフォールバック）
- * - aiComment.js があれば /api/comment で利用
+ * server.js — multi-engine KataGo API + static (Render/Local friendly)
+ *
+ * - Binds to 0.0.0.0:$PORT (Render OK). Local default 5173
+ * - /healthz         : health check (returns 503 until *all* engines are ready)
+ * - /api/engines     : list engines and metadata
+ * - /api/analyze     : KataGo analysis (engine=easy|normal|hard)
+ * - /api/eval        : single eval using strongest available
+ * - /api/comment     : optional comment (fallback if missing)
+ * - Static hosting   : mounted LAST to avoid route collisions
  */
 
+// -------------------- Imports --------------------
 const express   = require("express");
 const cors      = require("cors");
 const path      = require("path");
@@ -14,19 +18,25 @@ const fs        = require("fs");
 const { spawn } = require("child_process");
 const readline  = require("readline");
 
- // 本番(Render)では .env.local を読まない（PORT 等の上書きを避ける） // ★変更
- if (process.env.NODE_ENV !== "production") {
-   require("dotenv").config({ path: ".env.local" });
- }
+// -------------------- App Basics --------------------
+if (process.env.NODE_ENV !== "production") {
+  try { require("dotenv").config({ path: ".env.local" }); } catch {}
+}
 
 const app  = express();
-const PORT = process.env.PORT || 5173;
+const PORT = Number(process.env.PORT) || 5173;
+const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors({ origin: true }));
-app.use(express.json());
-app.use(express.static(path.join(__dirname))); // 同ディレクトリを静的配信
+app.use(express.json({ limit: "2mb" }));
 
-// ========= Engine definitions =========
+console.log("[boot] using file:", __filename);
+
+// Debug: log API hits
+app.all("/api/*", (req, _res, next) => { console.log(`[hit] ${req.method} ${req.path}`); next(); });
+
+// -------------------- Engine Config --------------------
+const ENGINE_NAMES = ["easy", "normal", "hard"];
 const base = path.join(__dirname, "engines");
 const ENGINES = {
   easy: {
@@ -36,52 +46,64 @@ const ENGINES = {
   },
   normal: {
     exe:   process.env.KATAGO_NORMAL_EXE   || path.join(base, "bin/katago"),
-    model: process.env.KATAGO_NORMAL_MODEL || path.join(base, "normal_b10/weights/g170e-b10c128-s1141046784-d204142634.bin.gz"),
+    // NOTE: default points to b6 network to match common distro; override via env for true b10
+    model: process.env.KATAGO_NORMAL_MODEL || path.join(base, "normal_b10/weights/kata1-b6c96-s175395328-d26788732.txt.gz"),
     cfg:   process.env.KATAGO_NORMAL_CFG   || path.join(base, "normal_b10/analysis.cfg"),
   },
   hard: {
     exe:   process.env.KATAGO_HARD_EXE   || path.join(base, "bin/katago"),
-    model: process.env.KATAGO_HARD_MODEL || path.join(base, "hard_b18/weights/kata1-b18c256-s1929312256-d418716293.txt.gz"),
+    model: process.env.KATAGO_HARD_MODEL || path.join(base, "hard_b18/weights/kata1-b10c128-s1141046784-d204142634.txt.gz"),
     cfg:   process.env.KATAGO_HARD_CFG   || path.join(base, "hard_b18/analysis.cfg"),
   },
 };
 
-// ========= Utilities =========
+// -------------------- Utilities --------------------
 const procs = {};           // name -> { proc, rl, waiters }
 const engineMeta = {};      // name -> { backend, modelName, version, katago }
-const disabled   = {};      // name -> true if missing files
+const disabled   = {};      // name -> true if missing files or spawn failed
+const engineReady = { easy:false, normal:false, hard:false }; // becomes true after warmup success
 
+function logReady() {
+  console.log(`[ready] easy=${engineReady.easy} normal=${engineReady.normal} hard=${engineReady.hard}`);
+}
 function exists(p) { try { return fs.existsSync(p); } catch { return false; } }
 function sanitizeEngineName(x) {
   const n = String(x || "").toLowerCase();
   return n === "easy" || n === "hard" ? n : "normal";
 }
-function logEngine(name, e) {
-  console.log(`[${name}] exe=${e.exe}`);
+function resolveExe(p) {
+  if (process.platform === "win32") {
+    if (exists(p)) return p;
+    if (exists(p + ".exe")) return p + ".exe";
+    return "katago"; // fall back to PATH
+  }
+  return p;
+}
+function logEngine(name, e, resolvedExe) {
+  console.log(`[${name}] exe=${resolvedExe || e.exe}`);
   console.log(`        model=${e.model}`);
   console.log(`        cfg=${e.cfg}`);
 }
 
-// 起動前チェック（ファイルが無ければ disable）
+// Pre-flight: ensure config and model exist
 for (const [name, e] of Object.entries(ENGINES)) {
   let ok = true;
-  if (!exists(e.exe))   { console.warn(`[${name}] missing exe: ${e.exe}`); ok = false; }
   if (!exists(e.cfg))   { console.warn(`[${name}] missing cfg: ${e.cfg}`); ok = false; }
   if (!exists(e.model)) { console.warn(`[${name}] missing model: ${e.model}`); ok = false; }
   if (!ok) {
     disabled[name] = true;
     console.warn(`[${name}] DISABLED (missing files)`);
   }
-  logEngine(name, e);
+  logEngine(name, e, resolveExe(e.exe));
 }
 
-// ========= Spawn & talk to KataGo =========
+// -------------------- Spawn & IPC --------------------
 function spawnEngine(name) {
   if (disabled[name]) return;
-
   const { exe, model, cfg } = ENGINES[name];
+  const exePath = resolveExe(exe);
   const args = ["analysis", "-model", model, "-config", cfg];
-  const proc = spawn(exe, args, { stdio: ["pipe", "pipe", "pipe"] });
+  const proc = spawn(exePath, args, { stdio: ["pipe", "pipe", "pipe"] });
 
   const rlOut = readline.createInterface({ input: proc.stdout });
   const rlErr = readline.createInterface({ input: proc.stderr, crlfDelay: Infinity });
@@ -106,28 +128,32 @@ function spawnEngine(name) {
     const s = String(line).trim();
     if (!s) return;
     console.error(`[${name}] ${s}`);
-
     try {
       let m;
       m = s.match(/backend\s*(.*)thread/i);
       if (m) (engineMeta[name] ||= {}).backend   = m[1].trim();
-      m = s.match(/Model name:\s*([\w\-\.]+)/i);
+      m = s.match(/Model name:\s*([\w\-.]+)/i);
       if (m) (engineMeta[name] ||= {}).modelName = m[1];
       m = s.match(/Model version\s*(\d+)/i);
       if (m) (engineMeta[name] ||= {}).version   = parseInt(m[1], 10);
       m = s.match(/KataGo v(\d+\.\d+\.\d+)/i);
       if (m) (engineMeta[name] ||= {}).katago    = m[1];
-    } catch { /* ignore */ }
+    } catch {}
+  });
+
+  proc.on("error", (err) => {
+    console.error(`[${name}] spawn error: ${err.message}`);
+    disabled[name] = true;
   });
 
   proc.on("exit", (code, signal) => {
     console.error(`[${name}] exited: code=${code} signal=${signal}`);
     try { rlOut.close(); rlErr.close(); } catch {}
-    // 自動再起動（任意）
+    engineReady[name] = false; // must re-warm if it respawns
     setTimeout(() => { if (!disabled[name]) spawnEngine(name); }, 1500);
   });
 
-  console.log(`[spawned] ${name} -> ${exe}`);
+  console.log(`[spawned] ${name} -> ${exePath}`);
 }
 
 function askKatago(name, payload, timeoutMs = 30000) {
@@ -138,14 +164,12 @@ function askKatago(name, payload, timeoutMs = 30000) {
     }
     const id = `req_${Math.random().toString(36).slice(2)}`;
     eng.waiters.set(id, { resolve, reject });
-
     try {
       eng.proc.stdin.write(JSON.stringify({ ...payload, id }) + "\n");
     } catch (e) {
       eng.waiters.delete(id);
       return reject(e);
     }
-
     setTimeout(() => {
       if (eng.waiters.has(id)) {
         eng.waiters.delete(id);
@@ -155,43 +179,67 @@ function askKatago(name, payload, timeoutMs = 30000) {
   });
 }
 
-// 起動（有効なものだけ）
+// Start engines now
 for (const name of Object.keys(ENGINES)) spawnEngine(name);
 
- // 起動直後のウォームアップ（モデルをロードして初回を軽くする） // ★変更
- async function warmup() {
-   const payload = { boardXSize:9, boardYSize:9, rules:"japanese", komi:6.5, moves:[], maxVisits:1 };
-   for (const n of ["easy","normal","hard"]) {
-     if (!disabled[n] && procs[n] && !procs[n].proc.killed) {
-       try { await askKatago(n, payload, 8000); } catch {}
-     }
-   }
- }
+// -------------------- Engine Warmup --------------------
+async function warmupEngine(name) {
+  if (disabled[name]) return;
+  const tries = [1000, 2000, 4000, 8000, 12000]; // backoff schedule
+  const payload = { boardXSize: 9, boardYSize: 9, rules: "japanese", komi: 6.5, moves: [], maxVisits: 1 };
+  for (const waitMs of tries) {
+    await new Promise(r => setTimeout(r, waitMs));
+    try {
+      await askKatago(name, payload, 10000);
+      engineReady[name] = true;
+      logReady();
+      return;
+    } catch {}
+  }
+  console.warn(`[warmup] ${name} not ready after retries`);
+}
 
-// ========= Health =========
+// Kick off warmups (non-blocking)
+for (const e of ENGINE_NAMES) warmupEngine(e);
 
- // Render のヘルスチェック用。200 応答が無難 // ★変更
- app.get("/healthz", (_req, res) => res.status(200).send("ok"));
+// -------------------- Health Check --------------------
+app.get("/healthz", (_req, res) => {
+  const allReady = ENGINE_NAMES.every(e => engineReady[e]);
+  if (allReady) res.status(200).send("ok");
+  else res.status(503).send("warming");
+});
 
-app.get("/engines", (_req, res) => {
+// -------------------- API Routes --------------------
+const api = express.Router();
+
+api.get("/engines", (_req, res) => {
   const list = Object.keys(ENGINES).map((name) => ({
     name,
     disabled: !!disabled[name],
     meta: engineMeta[name] || null,
     modelPath: ENGINES[name].model,
+    ready: !!engineReady[name],
   }));
-  res.json({ ok: true, engines: list });
+  res.type("application/json").json({ ok: true, engines: list });
 });
 
-// ========= API: analyze =========
-app.post("/api/analyze", async (req, res) => {
+// middleware: if preferred engine not ready yet → 503 with Retry-After
+api.use("/analyze", (req, res, next) => {
+  const engine = (req.query.engine || "easy").toString();
+  if (!engineReady[engine]) {
+    res.set("Retry-After", "2");
+    return res.status(503).json({ ok:false, error:`engine ${engine} warming` });
+  }
+  next();
+});
+
+api.post("/analyze", async (req, res) => {
   try {
     const preferred = sanitizeEngineName(req.query.engine || "normal");
-    const order = [preferred, "hard", "normal", "easy"]; // フォールバック順（重複は後で除去）
+    const order = [preferred, "hard", "normal", "easy"]; // fallback chain
     const tried = new Set();
     for (const n of order) {
-      if (tried.has(n)) continue;
-      tried.add(n);
+      if (tried.has(n)) continue; tried.add(n);
       if (!disabled[n] && procs[n] && !procs[n].proc.killed) {
         const payload = { ...req.body };
         if (!payload.rules) payload.rules = "japanese";
@@ -201,14 +249,7 @@ app.post("/api/analyze", async (req, res) => {
         if (Array.isArray(out?.moveInfos) && out.moveInfos.length) {
           bestMove = [...out.moveInfos].sort((a,b)=> (b.visits||0)-(a.visits||0))[0]?.move || null;
         }
-        return res.json({
-          ok: true,
-          engine: n,
-          model: ENGINES[n].model,
-          modelName: engineMeta[n]?.modelName || null,
-          bestMove,
-          katago: out,
-        });
+        return res.json({ ok:true, engine:n, model:ENGINES[n].model, modelName:engineMeta[n]?.modelName || null, bestMove, katago: out });
       }
     }
     return res.status(503).json({ ok:false, error:"no_engine_available" });
@@ -218,8 +259,7 @@ app.post("/api/analyze", async (req, res) => {
   }
 });
 
-// ========= API: eval（旧互換 / 強い方で1回だけ） =========
-app.post("/api/eval", async (req, res) => {
+api.post("/eval", async (req, res) => {
   try {
     const chain = ["hard", "normal", "easy"].filter(n => !disabled[n] && procs[n] && !procs[n].proc.killed);
     if (!chain.length) return res.status(503).json({ ok:false, error:"no_engine_available" });
@@ -232,8 +272,7 @@ app.post("/api/eval", async (req, res) => {
 
     let out = null, used = null;
     for (const n of chain) {
-      try { out = await askKatago(n, payload); used = n; break; }
-      catch { /* 次へフォールバック */ }
+      try { out = await askKatago(n, payload); used = n; break; } catch {}
     }
     if (!out) return res.status(500).json({ ok:false, error:"all_engines_failed" });
 
@@ -255,12 +294,11 @@ app.post("/api/eval", async (req, res) => {
   }
 });
 
-// ========= API: comment（任意機能） =========
 let aiComment = null;
 try { aiComment = require("./aiComment"); }
 catch { console.warn("aiComment.js not found or failed to load."); }
 
-app.post("/api/comment", async (req, res) => {
+api.post("/comment", async (req, res) => {
   try {
     if (!aiComment?.generateComment) {
       return res.json({ text: "（コメント機能は現在オフラインです）" });
@@ -274,15 +312,25 @@ app.post("/api/comment", async (req, res) => {
   }
 });
 
-// ========= Start & graceful shutdown =========
- // ========= Start & graceful shutdown =========
- const HOST = process.env.HOST || "0.0.0.0";          // ★変更
- const server = app.listen(PORT, HOST, () => {        // ★変更
-   const addr = server.address();                      // ★変更
-   console.log(`Server listening on http://${addr.address}:${addr.port}`); // ★変更
-   warmup();                                           // ★変更
- });
+// Mount /api first
+app.use("/api", api);
 
+// -------------------- Start & Static --------------------
+const server = app.listen(PORT, HOST, () => {
+  const addr = server.address();
+  let shown = `port ${PORT}`;
+  if (addr && typeof addr === "object" && "address" in addr && "port" in addr) {
+    shown = `http://${addr.address}:${addr.port}`;
+  } else if (typeof addr === "string") shown = addr;
+  console.log(`Server listening on ${shown}`);
+});
+
+server.on("error", (err) => {
+  console.error("[server] listen error:", err.message);
+});
+
+// Static LAST (once)
+app.use(express.static(path.join(__dirname), { redirect: false }));
 
 function shutdown() {
   console.log("Shutting down engines...");
