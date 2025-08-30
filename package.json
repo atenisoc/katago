@@ -1,17 +1,18 @@
-{
+﻿{
   "name": "katago-ui",
   "version": "1.0.0",
+  "private": true,
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
+  "scripts": {
+    "setup": "node ./scripts/setup.js",
+    "start": "node server.js"
+  },
   "dependencies": {
     "express": "^4.19.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5"
-  }
-}
-{
-  "scripts": {
-    "setup": "node ./scripts/setup.js",
-    "start": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }
