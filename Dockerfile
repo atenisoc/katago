@@ -43,6 +43,37 @@ RUN mkdir -p /app/engines/bin \
 COPY --from=katago-build /src/KataGo/cpp/build/katago /app/engines/bin/katago
 RUN chmod +x /app/engines/bin/katago && /app/engines/bin/katago version
 
+# 軽量ネット (b6) を取得（公式ミラー + 検証 + bin.gz フォールバック）
+# - まず .txt.gz を取得して gzip -t で検証
+# - 失敗したら .bin.gz を取得して検証
+# - どちらを使ったかに応じて /etc/environment と ENV を整合させる
+RUN set -eux; \
+  EASY_DIR="/app/engines/easy_b6/weights"; \
+  NORM_DIR="/app/engines/normal_b10/weights"; \
+  HARD_DIR="/app/engines/hard_b18/weights"; \
+  F_TXT="kata1-b6c96-s50894592-d7380655.txt.gz"; \
+  F_BIN="kata1-b6c96-s50894592-d7380655.bin.gz"; \
+  URL_TXT="https://media.katagotraining.org/uploaded/networks/models/kata1/${F_TXT}"; \
+  URL_BIN="https://media.katagotraining.org/uploaded/networks/models/kata1/${F_BIN}"; \
+  mkdir -p "$EASY_DIR" "$NORM_DIR" "$HARD_DIR"; \
+  echo "Downloading ${F_TXT} ..."; \
+  if curl -fL --retry 5 -o "${EASY_DIR}/${F_TXT}" "$URL_TXT" && gzip -t "${EASY_DIR}/${F_TXT}"; then \
+    ln -sf "${EASY_DIR}/${F_TXT}" "${NORM_DIR}/${F_TXT}"; \
+    ln -sf "${EASY_DIR}/${F_TXT}" "${HARD_DIR}/${F_TXT}"; \
+    echo "KATAGO_EASY_MODEL=${EASY_DIR}/${F_TXT}"   >> /etc/environment; \
+    echo "KATAGO_NORMAL_MODEL=${NORM_DIR}/${F_TXT}" >> /etc/environment; \
+    echo "KATAGO_HARD_MODEL=${HARD_DIR}/${F_TXT}"   >> /etc/environment; \
+  else \
+    echo "txt.gz failed; trying ${F_BIN} ..."; \
+    rm -f "${EASY_DIR}/${F_TXT}" || true; \
+    curl -fL --retry 5 -o "${EASY_DIR}/${F_BIN}" "$URL_BIN"; \
+    gzip -t "${EASY_DIR}/${F_BIN}"; \
+    ln -sf "${EASY_DIR}/${F_BIN}" "${NORM_DIR}/${F_BIN}"; \
+    ln -sf "${EASY_DIR}/${F_BIN}" "${HARD_DIR}/${F_BIN}"; \
+    echo "KATAGO_EASY_MODEL=${EASY_DIR}/${F_BIN}"   >> /etc/environment; \
+    echo "KATAGO_NORMAL_MODEL=${NORM_DIR}/${F_BIN}" >> /etc/environment; \
+    echo "KATAGO_HARD_MODEL=${HARD_DIR}/${F_BIN}"   >> /etc/environment; \
+  fi
 
 # analysis.cfg（最小設定）
 RUN printf "analysisPVLen = 10\nmaxVisits = 4\nnumAnalysisThreads = 1\nnumSearchThreads = 1\nreportAnalysisWinratesAs = BLACK\n" \
@@ -60,4 +91,9 @@ ENV PORT=5174 \
   KATAGO_HARD_MODEL=/app/engines/hard_b18/weights/kata1-b6c96-s50894592-d7380655.txt.gz
 
 EXPOSE 5174
+
+# （任意）ヘルスチェック：server.js が /healthz を持っている前提
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+  CMD curl -fsS http://localhost:5174/healthz || exit 1
+
 CMD ["node", "server.js"]
