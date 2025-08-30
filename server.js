@@ -11,22 +11,21 @@
  */
 
 // -------------------- Imports --------------------
-const express   = require("express");
-const cors      = require("cors");
-const path      = require("path");
-const fs        = require("fs");
-const { spawn } = require("child_process");
-const readline  = require("readline");
+// ---- requires (一意) ----
+const express   = require('express');
+const cors      = require('cors');
+const fs        = require('fs');
+const path      = require('path');
+const { spawn } = require('child_process');
+const readline  = require('readline');
 
-
-// --- weights ensure (runtime download) ---
+// もし起動時ダウンロードを入れているなら、このブロックも “重複なし” で一度だけ
 const https = require('https');
-const { pipeline } = require('stream');
-const { createWriteStream, existsSync, mkdirSync, unlinkSync } = require('fs');
+const { pipeline, Writable } = require('stream');
 const { promisify } = require('util');
 const zlib = require('zlib');
-const path = require('path');
-const streamPipeline = promisify(pipeline);
+const pipe = promisify(pipeline);
+
 
 async function downloadWithFallback(destPath, urls) {
   for (const url of urls) {
