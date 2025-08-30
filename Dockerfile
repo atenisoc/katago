@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
   libzip-dev libeigen3-dev zlib1g-dev \
   && rm -rf /var/lib/apt/lists/*
 
-# ソース取得（v1.16.3）
+# KataGo v1.16.3 をソースビルド（Eigen/CPU）
 WORKDIR /src
 RUN git clone --depth=1 --branch v1.16.3 https://github.com/lightvector/KataGo.git
 WORKDIR /src/KataGo/cpp
@@ -15,30 +15,35 @@ RUN mkdir build && cd build && \
   cmake -DUSE_BACKEND=EIGEN -DCMAKE_BUILD_TYPE=Release .. && \
   cmake --build . -j"$(nproc)"
 
-# ---------- Runtime stage: Node server + katago ----------
+# ---------- Runtime stage: Node server + KataGo ----------
 FROM node:20-slim
 
-# 必要ツール（curl, unzip等）
-RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
+# 実行時に必要な共有ライブラリ（libzip4 等）とツール
+RUN apt-get update && apt-get install -y \
+    ca-certificates curl \
+    libzip4 zlib1g libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# まず package.json だけコピーして依存解決
+# 依存解決（キャッシュ効かせるために先に package.*）
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev || npm i --omit=dev
 
 # アプリ本体
 COPY . .
 
-# Katago 実行ファイル配置
-RUN mkdir -p /app/engines/bin && \
-    mkdir -p /app/engines/easy_b6/weights /app/engines/normal_b10/weights /app/engines/hard_b18/weights
+# ディレクトリ準備
+RUN mkdir -p /app/engines/bin \
+    /app/engines/easy_b6/weights \
+    /app/engines/normal_b10/weights \
+    /app/engines/hard_b18/weights
 
-# ビルド成果物を持ってくる
+# ビルド成果物（katago 実行ファイル）を配置＆動作確認
 COPY --from=katago-build /src/KataGo/cpp/build/katago /app/engines/bin/katago
 RUN chmod +x /app/engines/bin/katago && /app/engines/bin/katago version
 
-# 軽量ネット(c=96,b=6)を取得（まずは動作確認用）
+# 軽量ネット (b6) を取得（まずは動作確認用）
 RUN curl -L -o /app/engines/easy_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz \
   "https://huggingface.co/datasets/katago/weights/resolve/main/b6/kata1-b6c96-s50894592-d7380655.txt.gz" && \
   cp /app/engines/easy_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz /app/engines/normal_b10/weights/ && \
@@ -50,6 +55,7 @@ RUN printf "analysisPVLen = 10\nmaxVisits = 4\nnumAnalysisThreads = 1\nnumSearch
         /app/engines/normal_b10/analysis.cfg \
         /app/engines/hard_b18/analysis.cfg >/dev/null
 
+# 既定の環境変数（Render で上書き可）
 ENV PORT=5174 \
   KATAGO_EASY_EXE=/app/engines/bin/katago \
   KATAGO_NORMAL_EXE=/app/engines/bin/katago \
