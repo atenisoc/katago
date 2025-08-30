@@ -9,3 +9,9 @@
     "dotenv": "^16.4.5"
   }
 }
+{
+  "scripts": {
+    "setup": "node ./scripts/setup.js",
+    "start": "node server.js"
+  }
+}
