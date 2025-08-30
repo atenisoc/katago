@@ -43,23 +43,6 @@ RUN mkdir -p /app/engines/bin \
 COPY --from=katago-build /src/KataGo/cpp/build/katago /app/engines/bin/katago
 RUN chmod +x /app/engines/bin/katago && /app/engines/bin/katago version
 
-# 軽量ネット (b6) を取得（堅牢版：--fail/--retry + gzip検証 + フォールバック）
-RUN set -e; \
-  EASY_DIR="/app/engines/easy_b6/weights"; \
-  NORM_DIR="/app/engines/normal_b10/weights"; \
-  HARD_DIR="/app/engines/hard_b18/weights"; \
-  FNAME="kata1-b6c96-s50894592-d7380655.txt.gz"; \
-  URL1="https://huggingface.co/datasets/katago/weights/resolve/main/b6/${FNAME}?download=1"; \
-  URL2="https://huggingface.co/datasets/katago/weights/resolve/main/b6/${FNAME}"; \
-  mkdir -p "$EASY_DIR" "$NORM_DIR" "$HARD_DIR"; \
-  echo "Downloading ${FNAME} ..."; \
-  (curl -fL --retry 5 -H "Accept: application/octet-stream" -o "${EASY_DIR}/${FNAME}" "$URL1" \
-    || curl -fL --retry 5 -H "Accept: application/octet-stream" -o "${EASY_DIR}/${FNAME}" "$URL2"); \
-  echo "Verifying gzip..."; \
-  gzip -t "${EASY_DIR}/${FNAME}" || (echo "Corrupted download, aborting"; ls -l "${EASY_DIR}/${FNAME}" && exit 1); \
-  cp "${EASY_DIR}/${FNAME}" "${NORM_DIR}/${FNAME}"; \
-  cp "${EASY_DIR}/${FNAME}" "${HARD_DIR}/${FNAME}"
-
 
 # analysis.cfg（最小設定）
 RUN printf "analysisPVLen = 10\nmaxVisits = 4\nnumAnalysisThreads = 1\nnumSearchThreads = 1\nreportAnalysisWinratesAs = BLACK\n" \

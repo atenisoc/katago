@@ -18,6 +18,91 @@ const fs        = require("fs");
 const { spawn } = require("child_process");
 const readline  = require("readline");
 
+
+// --- weights ensure (runtime download) ---
+const https = require('https');
+const { pipeline } = require('stream');
+const { createWriteStream, existsSync, mkdirSync, unlinkSync } = require('fs');
+const { promisify } = require('util');
+const zlib = require('zlib');
+const path = require('path');
+const streamPipeline = promisify(pipeline);
+
+async function downloadWithFallback(destPath, urls) {
+  for (const url of urls) {
+    try {
+      await new Promise((resolve, reject) => {
+        const req = https.get(url, { headers: { 'Accept': 'application/octet-stream', 'User-Agent': 'curl/8' } }, (res) => {
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+            res.resume();
+            return;
+          }
+          // 一時ファイルへ保存
+          const tmp = destPath + '.part';
+          const out = createWriteStream(tmp);
+          res.pipe(out);
+          out.on('finish', async () => {
+            // gzip 検証（展開テスト）
+            try {
+              await streamPipeline(
+                require('fs').createReadStream(tmp),
+                zlib.createGunzip(), 
+                require('stream').Writable({ write(c, e, cb){ cb(); } })
+              );
+              // OKなら本番ファイルへ
+              require('fs').renameSync(tmp, destPath);
+              resolve();
+            } catch (e) {
+              try { unlinkSync(tmp); } catch {}
+              reject(new Error(`gzip verify failed: ${e.message}`));
+            }
+          });
+          out.on('error', (e) => { try { unlinkSync(tmp); } catch {} ; reject(e); });
+        });
+        req.on('error', reject);
+      });
+      return; // 成功
+    } catch (e) {
+      console.warn(`[weights] failed ${url}: ${e.message}`);
+    }
+  }
+  throw new Error('All mirrors failed for weights');
+}
+
+async function ensureWeights() {
+  const base = path.join(__dirname, 'engines');
+  const FNAME = 'kata1-b6c96-s50894592-d7380655.txt.gz';
+  const targets = [
+    path.join(base, 'easy_b6', 'weights', FNAME),
+    path.join(base, 'normal_b10', 'weights', FNAME),
+    path.join(base, 'hard_b18', 'weights', FNAME),
+  ];
+  // 必要ディレクトリ
+  for (const t of targets) mkdirSync(path.dirname(t), { recursive: true });
+
+  // どれか1つでも無ければ easy に落としてコピー
+  const easyPath = targets[0];
+  if (!existsSync(easyPath)) {
+    const mirrors = [
+      // HFはたまに401/認証が要るので複数ミラーを順に試す
+      'https://huggingface.co/datasets/katago/weights/resolve/main/b6/kata1-b6c96-s50894592-d7380655.txt.gz?download=1',
+      'https://huggingface.co/datasets/katago/weights/resolve/main/b6/kata1-b6c96-s50894592-d7380655.txt.gz',
+      // 追加ミラー（必要なら後で差し替え）
+      // 'https://your-mirror.example.com/kata1-b6c96-s50894592-d7380655.txt.gz',
+    ];
+    console.log('[weights] downloading b6 weights...');
+    await downloadWithFallback(easyPath, mirrors);
+  }
+  // コピー（存在しなければ）
+  const fs = require('fs');
+  for (let i = 1; i < targets.length; i++) {
+    if (!existsSync(targets[i])) fs.copyFileSync(easyPath, targets[i]);
+  }
+  console.log('[weights] ready:', targets.map(p => (existsSync(p) ? 'ok' : 'missing')).join(', '));
+}
+
+
 // -------------------- App Basics --------------------
 if (process.env.NODE_ENV !== "production") {
   try { require("dotenv").config({ path: ".env.local" }); } catch {}
