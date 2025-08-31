@@ -120,6 +120,100 @@ async function start() {
     // Express サーバ起動
     const app = express();
 
+import cors from 'cors';
+import { spawn } from 'child_process';
+
+// 中略: 既存の import, ensureModel, retry などはそのまま
+
+// ====== Express アプリ起動部 ======
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '1mb' }));
+
+// 1) ルート（ブラウザで見たときの案内用）
+app.get('/', (req, res) => {
+  res.type('text/plain').send('KataGo backend is up. Try POST /api/analyze?engine=easy');
+});
+
+// 2) ヘルスチェック（既存があればそのままでOK）
+app.get('/healthz', (req, res) => res.send('ok'));
+
+// 3) 解析API（最小実装：単発でKataGo analysisを起動）
+app.post('/api/analyze', async (req, res) => {
+  try {
+    const engine = (req.query.engine || 'easy').toString().toLowerCase(); // easy|normal|hard
+    const exe =
+      process.env[`KATAGO_${engine.toUpperCase()}_EXE`] || '/app/engines/bin/katago';
+    const model =
+      process.env[`KATAGO_${engine.toUpperCase()}_MODEL`] ||
+      `/app/engines/${engine}_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz`;
+    const cfg = `/app/engines/${engine}_b6/analysis.cfg`; // Dockerfileで作ったcfg
+
+    // リクエストから最低限の項目を拾う（無ければデフォルト）
+    const {
+      boardXSize = 19,
+      boardYSize = 19,
+      rules = 'japanese',
+      komi = 6.5,
+      moves = [],
+      maxVisits = 4,
+    } = req.body || {};
+
+    // KataGo analysis を単発起動
+    const child = spawn(exe, ['analysis', '-model', model, '-config', cfg], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    // 解析クエリ（JSON Lines）
+    const q = {
+      id: 'req1',
+      boardXSize,
+      boardYSize,
+      rules,
+      komi,
+      moves,      // 例: [["B","D4"],["W","Q16"]]
+      maxVisits,  // 訪問回数の上限（低いほど速い）
+    };
+
+    let best; // 返却用
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      for (const line of chunk.split('\n')) {
+        const s = line.trim();
+        if (!s) continue;
+        try {
+          const j = JSON.parse(s);
+          // 最初の応答で十分（moveInfos を取得）
+          if (j.id === 'req1' && j.moveInfos) {
+            best = j;
+          }
+        } catch {
+          // JSONでない行は無視
+        }
+      }
+    });
+
+    // エラーもログ化
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (d) => console.error('[katago]', d.trim()));
+
+    // クエリ投入して終了
+    child.stdin.write(JSON.stringify(q) + '\n');
+    child.stdin.end();
+
+    child.on('close', (code) => {
+      if (best) return res.json(best);
+      return res
+        .status(500)
+        .json({ error: 'no result from katago', exitCode: code });
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+
     // Healthcheck
     app.get('/healthz', (req, res) => res.send('ok'));
 
