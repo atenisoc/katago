@@ -1,6 +1,4 @@
-// server.js
-// ========== KataGo UI Runtime Entrypoint ==========
-
+// server.js  —— 最小・完成版（そのまま貼り付け）
 import fs from 'fs';
 import https from 'https';
 import { mkdirSync } from 'fs';
@@ -8,9 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import { spawn } from 'child_process';
 
-
-// ================= モデル準備ユーティリティ =================
-
+// ===== モデルDL設定（b6, .txt.gz を使用）=====
 const MODEL_NAME = 'kata1-b6c96-s50894592-d7380655.txt.gz';
 const MODEL_DIRS = [
   '/app/engines/easy_b6/weights',
@@ -18,267 +14,122 @@ const MODEL_DIRS = [
   '/app/engines/hard_b18/weights',
 ];
 
-function fileExists(p) {
-  try { return fs.statSync(p).size > 0; } catch { return false; }
-}
+// ----- ユーティリティ -----
+function fileExists(p) { try { return fs.statSync(p).size > 0; } catch { return false; } }
 
-// リダイレクト付きダウンロード
 function downloadWithRedirect(url, dest, { headers = {}, maxRedirects = 5 } = {}) {
   return new Promise((resolve, reject) => {
     const opts = new URL(url);
-    opts.headers = {
-      'User-Agent': 'katago-ui/1.0 (+https://katago-3.onrender.com)',
-      ...headers,
-    };
+    opts.headers = { 'User-Agent': 'katago-ui/1.0', ...headers };
     const req = https.get(opts, res => {
       const status = res.statusCode || 0;
-
-      // Redirect?
-      if ([301, 302, 303, 307, 308].includes(status)) {
+      if ([301,302,303,307,308].includes(status)) {
         if (maxRedirects <= 0) return reject(new Error(`Too many redirects from ${url}`));
-        const loc = res.headers.location;
-        if (!loc) return reject(new Error(`Redirect without Location from ${url}`));
-        res.resume(); // drain
-        return resolve(
-          downloadWithRedirect(new URL(loc, url).toString(), dest, { headers, maxRedirects: maxRedirects - 1 })
-        );
-      }
-
-      if (status !== 200) {
+        const loc = res.headers.location; if (!loc) return reject(new Error(`Redirect without Location from ${url}`));
         res.resume();
-        return reject(new Error(`HTTP ${status}`));
+        return resolve(downloadWithRedirect(new URL(loc, url).toString(), dest, { headers, maxRedirects: maxRedirects - 1 }));
       }
-
-      const file = fs.createWriteStream(dest);
-      res.pipe(file);
-      file.on('finish', () => file.close(resolve));
+      if (status !== 200) { res.resume(); return reject(new Error(`HTTP ${status}`)); }
+      const out = fs.createWriteStream(dest);
+      res.pipe(out); out.on('finish', () => out.close(resolve));
     });
     req.on('error', reject);
   });
 }
 
 async function ensureModel() {
-  for (const dir of MODEL_DIRS) mkdirSync(dir, { recursive: true });
+  for (const d of MODEL_DIRS) mkdirSync(d, { recursive: true });
   const target = `${MODEL_DIRS[0]}/${MODEL_NAME}`;
-  if (fileExists(target)) {
-    console.log('[start] model already exists');
-    return;
-  }
+  if (fileExists(target)) { console.log('[start] model already exists'); return; }
 
   console.log('[start] downloading model ...');
-
-  const HF_URL = `https://huggingface.co/katago/katago-models/resolve/main/networks/${MODEL_NAME}`;
-  const KATAGO_CDN = `https://media.katagotraining.org/networks/${MODEL_NAME}`;
-
+  // 公式の正しいパス（/uploaded/.../models/kata1）→ 古いパスの順で試す
+  const KATAGO_PRIMARY = `https://media.katagotraining.org/uploaded/networks/models/kata1/${MODEL_NAME}`;
+  const KATAGO_FALLBACK = `https://media.katagotraining.org/networks/${MODEL_NAME}`;
   const candidates = [
-    // HuggingFace 認証付き
-    { url: HF_URL, headers: process.env.HF_TOKEN ? { Authorization: `Bearer ${process.env.HF_TOKEN}` } : {} },
-    // HuggingFace 匿名
-    { url: HF_URL, headers: {} },
-    // 公式 KataGo CDN
-    { url: KATAGO_CDN, headers: {} },
+    { url: KATAGO_PRIMARY, headers: {} },
+    { url: KATAGO_FALLBACK, headers: {} },
   ];
 
-  let success = false;
+  let ok = false;
   for (const c of candidates) {
     try {
-      console.log(`[start] trying ${c.url}`);
+      console.log('[start] trying', c.url);
       await downloadWithRedirect(c.url, `${target}.part`, { headers: c.headers });
       fs.renameSync(`${target}.part`, target);
       fs.copyFileSync(target, `${MODEL_DIRS[1]}/${MODEL_NAME}`);
       fs.copyFileSync(target, `${MODEL_DIRS[2]}/${MODEL_NAME}`);
       console.log('[start] model ready:', target);
-      success = true;
-      break;
+      ok = true; break;
     } catch (e) {
       console.error('[start] failed:', c.url, e.message || e);
     }
   }
-  if (!success) throw new Error('All model download attempts failed');
-}
-
-// ================== リトライ付き起動処理 ==================
-
-async function retry(fn, times = 5, waitMs = 5000) {
-  let lastErr;
-  for (let i = 1; i <= times; i++) {
-    try {
-      return await fn();
-    } catch (e) {
-      lastErr = e;
-      console.error(`[start] attempt ${i}/${times} failed:`, e.message || e);
-      if (i < times) await new Promise(r => setTimeout(r, waitMs));
-    }
+  if (!ok) {
+    console.error('[start] WARNING: model could not be downloaded; server will still start');
   }
-  throw lastErr;
 }
 
-// ================== アプリ本体 ==================
+async function retry(fn, times = 3, waitMs = 5000) {
+  let last; for (let i = 1; i <= times; i++) {
+    try { return await fn(); }
+    catch (e) { last = e; console.error(`[start] attempt ${i}/${times} failed:`, e.message || e); if (i<times) await new Promise(r=>setTimeout(r, waitMs)); }
+  }
+  throw last;
+}
 
+// ===== Express アプリ =====
 async function start() {
-  try {
-    console.log('[start] ensuring model...');
-    await retry(() => ensureModel(), 3, 5000);
+  await retry(() => ensureModel(), 3, 5000);
 
-    // Express サーバ起動
-    const app = express();
+  const app = express();
+  app.use(cors());
+  app.use(express.json({ limit: '1mb' }));
 
+  // GET /
+  app.get('/', (req, res) => {
+    res.type('text/plain').send('KataGo backend is up. Try POST /api/analyze?engine=easy');
+  });
 
-app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+  // GET /healthz
+  app.get('/healthz', (req, res) => res.send('ok'));
 
-app.get('/', (req, res) => {
-  res.type('text/plain').send('KataGo backend is up. Try POST /api/analyze?engine=easy');
-});
+  // POST /api/analyze
+  app.post('/api/analyze', async (req, res) => {
+    try {
+      const engine = (req.query.engine || 'easy').toString().toLowerCase(); // easy|normal|hard
+      const exe = process.env[`KATAGO_${engine.toUpperCase()}_EXE`] || '/app/engines/bin/katago';
+      const model = process.env[`KATAGO_${engine.toUpperCase()}_MODEL`] ||
+        `/app/engines/${engine}_b6/weights/${MODEL_NAME}`;
+      const cfg = `/app/engines/${engine}_b6/analysis.cfg`;
 
-app.get('/healthz', (req, res) => res.send('ok'));
+      const {
+        boardXSize = 19, boardYSize = 19, rules = 'japanese',
+        komi = 6.5, moves = [], maxVisits = 4,
+      } = req.body || {};
 
-app.post('/api/analyze', async (req, res) => {
-  try {
-    const engine = (req.query.engine || 'easy').toString().toLowerCase();
-    const exe = process.env[`KATAGO_${engine.toUpperCase()}_EXE`] || '/app/engines/bin/katago';
-    const model =
-      process.env[`KATAGO_${engine.toUpperCase()}_MODEL`] ||
-      `/app/engines/${engine}_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz`;
-    const cfg = `/app/engines/${engine}_b6/analysis.cfg`;
+      const child = spawn(exe, ['analysis', '-model', model, '-config', cfg], { stdio: ['pipe','pipe','pipe'] });
+      const q = { id: 'req1', boardXSize, boardYSize, rules, komi, moves, maxVisits };
 
-    const {
-      boardXSize = 19, boardYSize = 19, rules = 'japanese',
-      komi = 6.5, moves = [], maxVisits = 4,
-    } = req.body || {};
-
-    const child = spawn(exe, ['analysis', '-model', model, '-config', cfg], { stdio: ['pipe','pipe','pipe'] });
-    const q = { id: 'req1', boardXSize, boardYSize, rules, komi, moves, maxVisits };
-
-    let best;
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', chunk => {
-      for (const line of chunk.split('\n')) {
-        const s = line.trim(); if (!s) continue;
-        try { const j = JSON.parse(s); if (j.id==='req1' && j.moveInfos) best = j; } catch {}
-      }
-    });
-    child.stderr.on('data', d => console.error('[katago]', String(d).trim()));
-    child.stdin.write(JSON.stringify(q) + '\n'); child.stdin.end();
-
-    child.on('close', code => best ? res.json(best) : res.status(500).json({ error:'no result from katago', exitCode: code }));
-  } catch (e) { res.status(500).json({ error: String(e?.message || e) }); }
-});
-
-
-import cors from 'cors';
-import { spawn } from 'child_process';
-
-// 中略: 既存の import, ensureModel, retry などはそのまま
-
-// ====== Express アプリ起動部 ======
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '1mb' }));
-
-// 1) ルート（ブラウザで見たときの案内用）
-app.get('/', (req, res) => {
-  res.type('text/plain').send('KataGo backend is up. Try POST /api/analyze?engine=easy');
-});
-
-// 2) ヘルスチェック（既存があればそのままでOK）
-app.get('/healthz', (req, res) => res.send('ok'));
-
-// 3) 解析API（最小実装：単発でKataGo analysisを起動）
-app.post('/api/analyze', async (req, res) => {
-  try {
-    const engine = (req.query.engine || 'easy').toString().toLowerCase(); // easy|normal|hard
-    const exe =
-      process.env[`KATAGO_${engine.toUpperCase()}_EXE`] || '/app/engines/bin/katago';
-    const model =
-      process.env[`KATAGO_${engine.toUpperCase()}_MODEL`] ||
-      `/app/engines/${engine}_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz`;
-    const cfg = `/app/engines/${engine}_b6/analysis.cfg`; // Dockerfileで作ったcfg
-
-    // リクエストから最低限の項目を拾う（無ければデフォルト）
-    const {
-      boardXSize = 19,
-      boardYSize = 19,
-      rules = 'japanese',
-      komi = 6.5,
-      moves = [],
-      maxVisits = 4,
-    } = req.body || {};
-
-    // KataGo analysis を単発起動
-    const child = spawn(exe, ['analysis', '-model', model, '-config', cfg], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    // 解析クエリ（JSON Lines）
-    const q = {
-      id: 'req1',
-      boardXSize,
-      boardYSize,
-      rules,
-      komi,
-      moves,      // 例: [["B","D4"],["W","Q16"]]
-      maxVisits,  // 訪問回数の上限（低いほど速い）
-    };
-
-    let best; // 返却用
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      for (const line of chunk.split('\n')) {
-        const s = line.trim();
-        if (!s) continue;
-        try {
-          const j = JSON.parse(s);
-          // 最初の応答で十分（moveInfos を取得）
-          if (j.id === 'req1' && j.moveInfos) {
-            best = j;
-          }
-        } catch {
-          // JSONでない行は無視
+      let best;
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', chunk => {
+        for (const line of chunk.split('\n')) {
+          const s = line.trim(); if (!s) continue;
+          try { const j = JSON.parse(s); if (j.id === 'req1' && j.moveInfos) best = j; } catch {}
         }
-      }
-    });
+      });
+      child.stderr.on('data', d => console.error('[katago]', String(d).trim()));
+      child.stdin.write(JSON.stringify(q) + '\n'); child.stdin.end();
 
-    // エラーもログ化
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (d) => console.error('[katago]', d.trim()));
+      child.on('close', code => best ? res.json(best) : res.status(500).json({ error:'no result from katago', exitCode: code }));
+    } catch (e) {
+      res.status(500).json({ error: String(e?.message || e) });
+    }
+  });
 
-    // クエリ投入して終了
-    child.stdin.write(JSON.stringify(q) + '\n');
-    child.stdin.end();
-
-    child.on('close', (code) => {
-      if (best) return res.json(best);
-      return res
-        .status(500)
-        .json({ error: 'no result from katago', exitCode: code });
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: String(e?.message || e) });
-  }
-});
-
-
-    // Healthcheck
-    app.get('/healthz', (req, res) => res.send('ok'));
-
-    // TODO: ここに /api/analyze など既存ルートを追加
-    // 例:
-    // app.post('/api/analyze', handler);
-
-    const PORT = process.env.PORT || 5174;
-    app.listen(PORT, () => {
-      console.log(`[start] server listening on port ${PORT}`);
-    });
-
-  } catch (e) {
-    console.error('[start] FATAL: model preparation failed:', e);
-    process.exit(1);
-  }
+  const PORT = process.env.PORT || 5174;
+  app.listen(PORT, () => console.log(`[start] server listening on port ${PORT}`));
 }
 
-start().catch(e => {
-  console.error('[start] UNCAUGHT:', e);
-  process.exit(1);
-});
+start().catch(e => { console.error('[start] UNCAUGHT:', e); process.exit(1); });
