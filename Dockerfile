@@ -54,9 +54,9 @@ ENV PORT=5174 \
   KATAGO_EASY_EXE=/app/engines/bin/katago \
   KATAGO_NORMAL_EXE=/app/engines/bin/katago \
   KATAGO_HARD_EXE=/app/engines/bin/katago \
-  KATAGO_EASY_MODEL=/app/engines/easy_b6/weights/kata1-b6c96-s50894592-d7380655.bin.gz \
-  KATAGO_NORMAL_MODEL=/app/engines/normal_b10/weights/kata1-b6c96-s50894592-d7380655.bin.gz \
-  KATAGO_HARD_MODEL=/app/engines/hard_b18/weights/kata1-b6c96-s50894592-d7380655.bin.gz
+  KATAGO_EASY_MODEL=/app/engines/easy_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz \
+  KATAGO_NORMAL_MODEL=/app/engines/normal_b10/weights/kata1-b6c96-s50894592-d7380655.txt.gz \
+  KATAGO_HARD_MODEL=/app/engines/hard_b18/weights/kata1-b6c96-s50894592-d7380655.txt.gz
 
 EXPOSE 5174
 CMD ["node", "server.js"]

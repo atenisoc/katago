@@ -8,7 +8,7 @@ import express from 'express';
 
 // ================= モデル準備ユーティリティ =================
 
-const MODEL_NAME = 'kata1-b6c96-s50894592-d7380655.bin.gz';
+const MODEL_NAME = 'kata1-b6c96-s50894592-d7380655.txt.gz';
 const MODEL_DIRS = [
   '/app/engines/easy_b6/weights',
   '/app/engines/normal_b10/weights',
@@ -64,7 +64,7 @@ async function ensureModel() {
 
   console.log('[start] downloading model ...');
 
-  const HF_URL = `https://huggingface.co/datasets/katago/weights/resolve/main/b6/${MODEL_NAME}`;
+  const HF_URL = `https://huggingface.co/katago/katago-models/resolve/main/networks/${MODEL_NAME}`;
   const KATAGO_CDN = `https://media.katagotraining.org/networks/${MODEL_NAME}`;
 
   const candidates = [
