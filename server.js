@@ -6,6 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import { spawn } from 'child_process';
 
+
 // ===== モデルDL設定（b6, .txt.gz を使用）=====
 const MODEL_NAME = 'kata1-b6c96-s50894592-d7380655.txt.gz';
 const MODEL_DIRS = [
@@ -83,52 +84,53 @@ async function start() {
   await retry(() => ensureModel(), 3, 5000);
 
   const app = express();
-  app.use(cors());
-  app.use(express.json({ limit: '1mb' }));
+app.use(cors());
+app.use(express.json({ limit: '1mb' }));
 
-  // GET /
-  app.get('/', (req, res) => {
-    res.type('text/plain').send('KataGo backend is up. Try POST /api/analyze?engine=easy');
-  });
+// 1) GET /
+app.get('/', (req, res) => {
+  res.type('text/plain').send('KataGo backend is up. Try POST /api/analyze?engine=easy');
+});
 
-  // GET /healthz
-  app.get('/healthz', (req, res) => res.send('ok'));
+// 2) GET /healthz
+app.get('/healthz', (req, res) => res.send('ok'));
 
-  // POST /api/analyze
-  app.post('/api/analyze', async (req, res) => {
-    try {
-      const engine = (req.query.engine || 'easy').toString().toLowerCase(); // easy|normal|hard
-      const exe = process.env[`KATAGO_${engine.toUpperCase()}_EXE`] || '/app/engines/bin/katago';
-      const model = process.env[`KATAGO_${engine.toUpperCase()}_MODEL`] ||
-        `/app/engines/${engine}_b6/weights/${MODEL_NAME}`;
-      const cfg = `/app/engines/${engine}_b6/analysis.cfg`;
+// 3) POST /api/analyze（最小版）
+app.post('/api/analyze', async (req, res) => {
+  try {
+    const engine = (req.query.engine || 'easy').toString().toLowerCase(); // easy|normal|hard
+    const exe = process.env[`KATAGO_${engine.toUpperCase()}_EXE`] || '/app/engines/bin/katago';
+    const model = process.env[`KATAGO_${engine.toUpperCase()}_MODEL`]
+      || `/app/engines/${engine}_b6/weights/kata1-b6c96-s50894592-d7380655.txt.gz`;
+    const cfg = `/app/engines/${engine}_b6/analysis.cfg`;
 
-      const {
-        boardXSize = 19, boardYSize = 19, rules = 'japanese',
-        komi = 6.5, moves = [], maxVisits = 4,
-      } = req.body || {};
+    const {
+      boardXSize = 19, boardYSize = 19, rules = 'japanese',
+      komi = 6.5, moves = [], maxVisits = 4,
+    } = req.body || {};
 
-      const child = spawn(exe, ['analysis', '-model', model, '-config', cfg], { stdio: ['pipe','pipe','pipe'] });
-      const q = { id: 'req1', boardXSize, boardYSize, rules, komi, moves, maxVisits };
+    const child = spawn(exe, ['analysis', '-model', model, '-config', cfg], { stdio: ['pipe','pipe','pipe'] });
+    const q = { id: 'req1', boardXSize, boardYSize, rules, komi, moves, maxVisits };
 
-      let best;
-      child.stdout.setEncoding('utf8');
-      child.stdout.on('data', chunk => {
-        for (const line of chunk.split('\n')) {
-          const s = line.trim(); if (!s) continue;
-          try { const j = JSON.parse(s); if (j.id === 'req1' && j.moveInfos) best = j; } catch {}
-        }
-      });
-      child.stderr.on('data', d => console.error('[katago]', String(d).trim()));
-      child.stdin.write(JSON.stringify(q) + '\n'); child.stdin.end();
+    let best;
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', chunk => {
+      for (const line of chunk.split('\n')) {
+        const s = line.trim(); if (!s) continue;
+        try { const j = JSON.parse(s); if (j.id === 'req1' && j.moveInfos) best = j; } catch {}
+      }
+    });
+    child.stderr.on('data', d => console.error('[katago]', String(d).trim()));
+    child.stdin.write(JSON.stringify(q) + '\n'); child.stdin.end();
 
-      child.on('close', code => best ? res.json(best) : res.status(500).json({ error:'no result from katago', exitCode: code }));
-    } catch (e) {
-      res.status(500).json({ error: String(e?.message || e) });
-    }
-  });
+    child.on('close', code => best ? res.json(best) : res.status(500).json({ error:'no result from katago', exitCode: code }));
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
 
-  const PORT = process.env.PORT || 5174;
+console.log('[start] routes ready: /, /healthz, POST /api/analyze');
+
   app.listen(PORT, () => console.log(`[start] server listening on port ${PORT}`));
 }
 
