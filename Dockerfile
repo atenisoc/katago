@@ -18,7 +18,7 @@ RUN mkdir build && cd build && \
 # ---------- Runtime stage: Node server + KataGo ----------
 FROM node:20-slim
 
-# 実行時に必要な共有ライブラリとツール
+# 実行時に必要なライブラリ
 RUN apt-get update && apt-get install -y \
     ca-certificates curl gzip \
     libzip4 zlib1g libgomp1 \
@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 依存解決（キャッシュ効かせるため最初に package.*）
+# 依存解決（キャッシュ効かせるため package.* を先にコピー）
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev || npm i --omit=dev
 
@@ -39,31 +39,9 @@ RUN mkdir -p /app/engines/bin \
     /app/engines/normal_b10/weights \
     /app/engines/hard_b18/weights
 
-# ビルド成果物（katago 実行ファイル）を配置＆動作確認
+# KataGo 実行ファイルを配置＆動作確認
 COPY --from=katago-build /src/KataGo/cpp/build/katago /app/engines/bin/katago
 RUN chmod +x /app/engines/bin/katago && /app/engines/bin/katago version
-
-# 軽量ネット (b6) を取得（HF_TOKEN を使用。無ければ匿名で再試行）＋ gzip 検証
-# Render の「Environment Variables」に HF_TOKEN を設定済みである前提（未設定でも動くフォールバック付）
-RUN set -e; \
-  EASY_DIR="/app/engines/easy_b6/weights"; \
-  NORM_DIR="/app/engines/normal_b10/weights"; \
-  HARD_DIR="/app/engines/hard_b18/weights"; \
-  FNAME="kata1-b6c96-s50894592-d7380655.bin.gz"; \
-  HF_URL="https://huggingface.co/datasets/katago/weights/resolve/main/b6/${FNAME}"; \
-  # まず Hugging Face（トークンあり）→ だめなら匿名 → さらに公式ミラーを試す
-  echo "Downloading ${FNAME} ..."; \
-  mkdir -p "$EASY_DIR" "$NORM_DIR" "$HARD_DIR"; \
-  ( \
-    [ -n "${HF_TOKEN}" ] && \
-      curl -fsSL --retry 5 -H "Authorization: Bearer ${HF_TOKEN}" -o "${EASY_DIR}/${FNAME}" "${HF_URL}" \
-  ) || \
-  curl -fsSL --retry 5 -o "${EASY_DIR}/${FNAME}" "${HF_URL}" || \
-  curl -fsSL --retry 5 -o "${EASY_DIR}/${FNAME}" "https://media.katagotraining.org/networks/${FNAME}"; \
-  echo "Verifying gzip..."; \
-  gzip -t "${EASY_DIR}/${FNAME}"; \
-  cp "${EASY_DIR}/${FNAME}" "${NORM_DIR}/${FNAME}"; \
-  cp "${EASY_DIR}/${FNAME}" "${HARD_DIR}/${FNAME}"
 
 # analysis.cfg（最小設定）
 RUN printf "analysisPVLen = 10\nmaxVisits = 4\nnumAnalysisThreads = 1\nnumSearchThreads = 1\nreportAnalysisWinratesAs = BLACK\n" \
@@ -71,7 +49,7 @@ RUN printf "analysisPVLen = 10\nmaxVisits = 4\nnumAnalysisThreads = 1\nnumSearch
         /app/engines/normal_b10/analysis.cfg \
         /app/engines/hard_b18/analysis.cfg >/dev/null
 
-# 既定の環境変数（Render で上書き可）
+# 環境変数（Renderで上書き可）
 ENV PORT=5174 \
   KATAGO_EASY_EXE=/app/engines/bin/katago \
   KATAGO_NORMAL_EXE=/app/engines/bin/katago \
