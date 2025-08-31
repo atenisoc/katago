@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 依存解決（キャッシュ用に先に package.*）
+# 依存解決（キャッシュ効かせるため最初に package.*）
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev || npm i --omit=dev
 
@@ -39,9 +39,31 @@ RUN mkdir -p /app/engines/bin \
     /app/engines/normal_b10/weights \
     /app/engines/hard_b18/weights
 
-# KataGo 実行ファイル配置＆動作確認
+# ビルド成果物（katago 実行ファイル）を配置＆動作確認
 COPY --from=katago-build /src/KataGo/cpp/build/katago /app/engines/bin/katago
 RUN chmod +x /app/engines/bin/katago && /app/engines/bin/katago version
+
+# 軽量ネット (b6) を取得（HF_TOKEN を使用。無ければ匿名で再試行）＋ gzip 検証
+# Render の「Environment Variables」に HF_TOKEN を設定済みである前提（未設定でも動くフォールバック付）
+RUN set -e; \
+  EASY_DIR="/app/engines/easy_b6/weights"; \
+  NORM_DIR="/app/engines/normal_b10/weights"; \
+  HARD_DIR="/app/engines/hard_b18/weights"; \
+  FNAME="kata1-b6c96-s50894592-d7380655.bin.gz"; \
+  HF_URL="https://huggingface.co/datasets/katago/weights/resolve/main/b6/${FNAME}"; \
+  # まず Hugging Face（トークンあり）→ だめなら匿名 → さらに公式ミラーを試す
+  echo "Downloading ${FNAME} ..."; \
+  mkdir -p "$EASY_DIR" "$NORM_DIR" "$HARD_DIR"; \
+  ( \
+    [ -n "${HF_TOKEN}" ] && \
+      curl -fsSL --retry 5 -H "Authorization: Bearer ${HF_TOKEN}" -o "${EASY_DIR}/${FNAME}" "${HF_URL}" \
+  ) || \
+  curl -fsSL --retry 5 -o "${EASY_DIR}/${FNAME}" "${HF_URL}" || \
+  curl -fsSL --retry 5 -o "${EASY_DIR}/${FNAME}" "https://media.katagotraining.org/networks/${FNAME}"; \
+  echo "Verifying gzip..."; \
+  gzip -t "${EASY_DIR}/${FNAME}"; \
+  cp "${EASY_DIR}/${FNAME}" "${NORM_DIR}/${FNAME}"; \
+  cp "${EASY_DIR}/${FNAME}" "${HARD_DIR}/${FNAME}"
 
 # analysis.cfg（最小設定）
 RUN printf "analysisPVLen = 10\nmaxVisits = 4\nnumAnalysisThreads = 1\nnumSearchThreads = 1\nreportAnalysisWinratesAs = BLACK\n" \
@@ -56,9 +78,7 @@ ENV PORT=5174 \
   KATAGO_HARD_EXE=/app/engines/bin/katago \
   KATAGO_EASY_MODEL=/app/engines/easy_b6/weights/kata1-b6c96-s50894592-d7380655.bin.gz \
   KATAGO_NORMAL_MODEL=/app/engines/normal_b10/weights/kata1-b6c96-s50894592-d7380655.bin.gz \
-  KATAGO_HARD_MODEL=/app/engines/hard_b18/weights/kata1-b6c96-s50894592-d7380655.bin.gz \
-  # 起動時ダウンロード用（カンマ区切りで複数URLを指定可能）
-  KATAGO_MODEL_URLS="https://media.katagotraining.org/networks/kata1-b6c96-s50894592-d7380655.bin.gz,https://huggingface.co/datasets/katago/weights/resolve/main/b6/kata1-b6c96-s50894592-d7380655.bin.gz?download=1"
+  KATAGO_HARD_MODEL=/app/engines/hard_b18/weights/kata1-b6c96-s50894592-d7380655.bin.gz
 
 EXPOSE 5174
 CMD ["node", "server.js"]
